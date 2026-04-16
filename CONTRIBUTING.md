@@ -56,3 +56,12 @@ test: add test for quota parsing edge case
 ## Release Process
 
 Automated via [release-please](https://github.com/googleapis/release-please). Use conventional commits — `feat:` and `fix:` trigger version bumps. See CLAUDE.md for full flow.
+
+## Repository Setup
+
+Default community health files (security policy, PR template, issue templates)
+are provided by [calvindotsg/.github](https://github.com/calvindotsg/.github).
+Project-specific overrides live in this repo's `.github/` directory.
+
+Repository settings (merge strategy, branch protection, security) are codified
+in the shared [setup script](https://github.com/calvindotsg/.github/blob/main/scripts/setup-repo.sh).

@@ -63,6 +63,7 @@ cc-menubar/
 - **SwiftBar Output DSL** (`render.py`): `color=#light,#dark` dual-color format for automatic macOS appearance switching
 - **Graceful collector pattern** (`collectors/*.py`): each returns `None` on failure, render skips that section
 - **WCAG AA dual-color presets** (`constants.py`): light-mode colors darkened for 4.5:1 against #FFFFFF, dark-mode for #2B2B2B
+- **Repository governance** ([calvindotsg/.github](https://github.com/calvindotsg/.github)): shared community health files (SECURITY.md, PR/issue templates) inherited by all repos + `scripts/setup-repo.sh` for squash-only merges, branch protection, security scanning — settings not discoverable by exploring the codebase
 
 ## Constraints
 
