@@ -1,0 +1,46 @@
+[general]
+timezone = ""           # Auto-detect if empty
+locale = ""             # Auto-detect if empty
+cache_ttl = 300
+claude_data_dir = ""    # Auto-detect: ~/.claude or $CLAUDE_CONFIG_DIR
+
+[title]
+symbol = "gauge.with.needle.fill"  # SF Symbol name (variable-value capable)
+text = "none"                       # "none" | "percent" | "label"
+color = "monochrome"                # "monochrome" | "threshold" | "always"
+metric = "5h"                       # Primary quota window: "5h" | "7d"
+cycle = []                          # Extra metrics to rotate: ["5h", "7d", "opusplan", "context"] (excludes primary metric)
+
+[quota]
+enabled = true
+extra_usage_budget = 0.0
+extra_usage_reset_date = ""
+
+[blocks]
+enabled = true
+session_length = 5
+ccusage_timeout = 15
+
+[opusplan]
+enabled = true
+
+[context]
+enabled = true
+large_session_threshold = 150000
+
+[activity]
+enabled = true
+days = 7
+
+[tools]
+enabled = true
+top_n = 10              # Number of top tools and bash commands to show
+
+[projects]
+enabled = true
+[projects.aliases]
+
+[theme]
+preset = "ayu"   # Built-in: "ayu" (default), "catppuccin"
+# [theme.light]  # Override individual roles
+# [theme.dark]
