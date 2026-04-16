@@ -27,7 +27,7 @@ class Theme:
 
     def color(self, role: str) -> str:
         """Return 'light,dark' color string for SwiftBar."""
-        pair = self._colors.get(role, self._colors.get("text", ("#5c6166", "#bfbdb6")))
+        pair = self._colors.get(role, self._colors.get("text", ("#6c7680", "#b3b1ad")))
         return f"{pair[0]},{pair[1]}"
 
     def threshold_role(self, remaining: float) -> str:
@@ -248,8 +248,14 @@ def _render_quota_section(
             f" | color={theme.color(role)} font=Menlo size=12"
         )
 
-    # Extra usage budget
-    if config.extra_usage_budget > 0:
+    # Extra usage: prefer JSON data, fall back to config
+    if quota and quota.extra_usage:
+        eu = quota.extra_usage
+        eu_text = f"Extra usage: ${eu.spent:.2f} / ${eu.budget:.2f}"
+        if eu.resets_at:
+            eu_text += f" \u00b7 resets {_format_time_until(eu.resets_at)}"
+        lines.append(f"--{eu_text} | color={theme.color('subtext')} font=Menlo size=11")
+    elif config.extra_usage_budget > 0:
         lines.append(
             f"--Extra usage budget: ${config.extra_usage_budget:.2f}"
             f" | color={theme.color('subtext')} font=Menlo size=11"

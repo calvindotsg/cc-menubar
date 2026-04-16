@@ -18,12 +18,22 @@ class QuotaData:
 
 
 @dataclass
+class ExtraUsageData:
+    """Extra usage billing data."""
+
+    spent: float
+    budget: float
+    resets_at: str
+
+
+@dataclass
 class QuotaInfo:
     """Combined quota info for both windows."""
 
     five_hour: QuotaData | None
     seven_day: QuotaData | None
     cache_age: float  # seconds since cache was written
+    extra_usage: ExtraUsageData | None = None
 
 
 def read_quota() -> QuotaInfo | None:
@@ -58,7 +68,21 @@ def read_quota() -> QuotaInfo | None:
                 resets_at=sd.get("resets_at", ""),
             )
 
-        return QuotaInfo(five_hour=five_hour, seven_day=seven_day, cache_age=cache_age)
+        extra_usage = None
+        if data.get("extra_usage"):
+            eu = data["extra_usage"]
+            extra_usage = ExtraUsageData(
+                spent=eu.get("spent", 0.0),
+                budget=eu.get("budget", 0.0),
+                resets_at=eu.get("resets_at", ""),
+            )
+
+        return QuotaInfo(
+            five_hour=five_hour,
+            seven_day=seven_day,
+            cache_age=cache_age,
+            extra_usage=extra_usage,
+        )
 
     except (json.JSONDecodeError, OSError):
         return None

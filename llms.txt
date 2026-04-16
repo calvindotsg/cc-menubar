@@ -1,0 +1,30 @@
+# cc-menubar
+
+> Pace your quota -- proactive forecasting for Claude Code Max, not retroactive tracking.
+
+cc-menubar is a macOS menu bar app (via SwiftBar) that shows remaining Claude Code quota as a gauge icon with a dropdown dashboard. It answers "how far will my quota take me?" instead of "how much did I use?"
+
+## Install
+
+```bash
+brew install calvindotsg/tap/cc-menubar
+brew install --cask swiftbar
+cc-menubar install
+```
+
+## Key Entry Points
+
+- `src/cc_menubar/cli.py` -- Typer CLI: render, install, uninstall, init, config
+- `src/cc_menubar/render.py` -- SwiftBar output formatter + Theme class
+- `src/cc_menubar/config.py` -- 3-layer TOML config merge (defaults -> user -> env)
+- `src/cc_menubar/constants.py` -- Categories, tool sets, WCAG AA theme presets
+- `src/cc_menubar/collectors/` -- Data collectors (quota, blocks, JSONL, cache)
+
+## Config
+
+`~/.config/cc-menubar/config.toml` -- see `cc-menubar init` for commented template.
+
+## Docs
+
+- [CLAUDE.md](CLAUDE.md) -- Architecture, patterns, and constraints
+- [README.md](README.md) -- User-facing documentation

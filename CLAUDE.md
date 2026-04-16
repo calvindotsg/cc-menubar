@@ -47,7 +47,7 @@ cc-menubar/
 - `font=Menlo size=11` for monospace data rows
 
 ### Caching
-- Quota: reads `/tmp/claude-statusline-usage.json` (written by statusline.py)
+- Quota: reads `/tmp/claude-statusline-usage.json` (written by statusline.py); includes extra_usage when available
 - Blocks: `ccusage blocks --json --active` subprocess with timeout
 - JSONL: single-pass parse of `~/.claude/projects/*/**.jsonl`, mtime-filtered
 - Aggregate cache: `/tmp/cc-menubar-cache.json`, configurable TTL
@@ -57,6 +57,12 @@ cc-menubar/
 - Render catches all exceptions; fallback to static `-- | sfimage=gauge.with.needle.fill`
 - `sfvalue` requires macOS 13.0+ — older versions get static icon
 - `fold=true` degrades to expanded sections on older SwiftBar versions
+
+### Reusable Patterns
+- **3-layer TOML config merge** (`config.py`): bundled defaults → user file → env vars, deep merge at section level
+- **SwiftBar Output DSL** (`render.py`): `color=#light,#dark` dual-color format for automatic macOS appearance switching
+- **Graceful collector pattern** (`collectors/*.py`): each returns `None` on failure, render skips that section
+- **WCAG AA dual-color presets** (`constants.py`): light-mode colors darkened for 4.5:1 against #FFFFFF, dark-mode for #2B2B2B
 
 ## Constraints
 
