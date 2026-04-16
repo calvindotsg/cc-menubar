@@ -1,6 +1,6 @@
 [project]
 name = "cc-menubar"
-version = "0.2.1"
+version = "0.2.2"
 description = "Pace your quota — proactive forecasting for Claude Code Max, not retroactive tracking"
 readme = "README.md"
 license = "MIT"
