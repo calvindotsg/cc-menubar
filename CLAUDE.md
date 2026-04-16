@@ -47,7 +47,7 @@ cc-menubar/
 - `font=Menlo size=11` for monospace data rows
 
 ### Caching
-- Quota: reads `/tmp/claude-statusline-usage.json` (written by statusline.py); includes extra_usage when available
+- Quota: reads `/tmp/claude-statusline-usage.json` (written by statusline.py). Three windows: five_hour, seven_day, seven_day_sonnet. extra_usage is config-fallback only (no public API — anthropics/claude-code#34348 closed).
 - Blocks: `ccusage blocks --json --active` subprocess with timeout
 - JSONL: single-pass parse of `~/.claude/projects/*/**.jsonl`, mtime-filtered
 - Aggregate cache: `/tmp/cc-menubar-cache.json`, configurable TTL
@@ -64,6 +64,7 @@ cc-menubar/
 - **Graceful collector pattern** (`collectors/*.py`): each returns `None` on failure, render skips that section
 - **WCAG AA dual-color presets** (`constants.py`): light-mode colors darkened for 4.5:1 against #FFFFFF, dark-mode for #2B2B2B
 - **Repository governance** ([calvindotsg/.github](https://github.com/calvindotsg/.github)): shared community health files (SECURITY.md, PR/issue templates) inherited by all repos + `scripts/setup-repo.sh` for squash-only merges, branch protection, security scanning — settings not discoverable by exploring the codebase
+- **Canonical schema alignment at value level** (`collectors/quota.py`): when caching upstream API data, pin **value semantics** (scale, units) to the canonical schema source — not just field names. cc-menubar documents `utilization` as percent 0–100 (matching [Claude Code statusline rate_limits.*.used_percentage](https://code.claude.com/docs/en/statusline#full-json-schema)) even though the cache field name comes from the OAuth endpoint (`utilization`). Field renames across producer + consumer are deferred as cosmetic; value-semantics alignment is the load-bearing decision.
 
 ## Constraints
 
@@ -72,6 +73,7 @@ cc-menubar/
 - **ccusage optional**: blocks section gracefully skips if ccusage not installed
 - **Quota read-only**: Only reads statusline.py cache, never calls OAuth directly
 - **Typer sole dependency**: Rich is transitive via Typer
+- **Quota scale**: `utilization` is 0–100 percent, not 0.0–1.0 fraction. Matches Claude Code statusline `rate_limits.*.used_percentage` canonical schema. Render divides by 100 for `sfvalue` (0.0–1.0).
 
 ## Release Process
 
