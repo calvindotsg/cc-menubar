@@ -147,9 +147,9 @@ def _get_remaining(quota: QuotaInfo | None, metric: str) -> float | None:
     if not quota:
         return None
     if metric == "5h" and quota.five_hour:
-        return max(0.0, 1.0 - quota.five_hour.utilization)
+        return max(0.0, 1.0 - quota.five_hour.utilization / 100.0)
     if metric == "7d" and quota.seven_day:
-        return max(0.0, 1.0 - quota.seven_day.utilization)
+        return max(0.0, 1.0 - quota.seven_day.utilization / 100.0)
     return None
 
 
@@ -236,10 +236,11 @@ def _render_quota_section(
     for window, data, label in [
         ("5h", quota.five_hour, "5-Hour"),
         ("7d", quota.seven_day, "7-Day"),
+        ("7ds", quota.seven_day_sonnet, "7-Day (Sonnet)"),
     ]:
         if not data:
             continue
-        remaining = max(0.0, 1.0 - data.utilization)
+        remaining = max(0.0, 1.0 - data.utilization / 100.0)
         pct = int(remaining * 100)
         role = theme.threshold_role(remaining)
         resets_in = _format_time_until(data.resets_at) if data.resets_at else "?"

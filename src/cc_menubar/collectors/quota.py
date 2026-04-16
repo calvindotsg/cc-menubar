@@ -13,7 +13,7 @@ USAGE_CACHE_FILE = Path("/tmp/claude-statusline-usage.json")
 class QuotaData:
     """Quota utilization for a time window."""
 
-    utilization: float  # 0.0-1.0 fraction used
+    utilization: float  # 0.0-100.0 percent used; matches statusline rate_limits.*.used_percentage
     resets_at: str  # ISO 8601 timestamp
 
 
@@ -34,6 +34,7 @@ class QuotaInfo:
     seven_day: QuotaData | None
     cache_age: float  # seconds since cache was written
     extra_usage: ExtraUsageData | None = None
+    seven_day_sonnet: QuotaData | None = None
 
 
 def read_quota() -> QuotaInfo | None:
@@ -77,11 +78,20 @@ def read_quota() -> QuotaInfo | None:
                 resets_at=eu.get("resets_at", ""),
             )
 
+        seven_day_sonnet = None
+        if data.get("seven_day_sonnet"):
+            sds = data["seven_day_sonnet"]
+            seven_day_sonnet = QuotaData(
+                utilization=sds.get("utilization", 0.0),
+                resets_at=sds.get("resets_at", ""),
+            )
+
         return QuotaInfo(
             five_hour=five_hour,
             seven_day=seven_day,
             cache_age=cache_age,
             extra_usage=extra_usage,
+            seven_day_sonnet=seven_day_sonnet,
         )
 
     except (json.JSONDecodeError, OSError):
