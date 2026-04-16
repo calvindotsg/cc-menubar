@@ -41,6 +41,6 @@ enabled = true
 [projects.aliases]
 
 [theme]
-preset = "ayu"   # Built-in: "ayu" (default), "catppuccin"
+preset = "ayu"   # Built-in: "ayu" (default), "catppuccin". WCAG AA compliant.
 # [theme.light]  # Override individual roles
 # [theme.dark]

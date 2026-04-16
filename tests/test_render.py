@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cc_menubar.collectors.quota import QuotaData, QuotaInfo
+from cc_menubar.collectors.quota import ExtraUsageData, QuotaData, QuotaInfo
 from cc_menubar.config import Config
 from cc_menubar.render import Theme, _format_project_display, render
 
@@ -22,6 +22,7 @@ def _make_config(**kwargs) -> Config:
         "activity_enabled": False,
         "tools_enabled": False,
         "projects_enabled": False,
+        "extra_usage_budget": 0.0,
         "theme_preset": "ayu",
         "theme_light": {},
         "theme_dark": {},
@@ -41,11 +42,11 @@ def _make_quota(five_hour_util: float = 0.27, seven_day_util: float = 0.09) -> Q
 class TestTheme:
     def test_default_preset(self):
         theme = Theme("ayu", {}, {})
-        assert theme.color("success") == "#86b300,#aad94c"
+        assert theme.color("success") == "#647f2e,#c2d94c"
 
     def test_override(self):
         theme = Theme("ayu", {"success": "#custom"}, {})
-        assert theme.color("success") == "#custom,#aad94c"
+        assert theme.color("success") == "#custom,#c2d94c"
 
     def test_threshold_role(self):
         theme = Theme("ayu", {}, {})
@@ -123,6 +124,26 @@ class TestDropdown:
         config = _make_config()
         output = render(config, None, None, None)
         assert "Refresh | refresh=true" in output
+
+    def test_extra_usage_from_json(self):
+        """Extra usage from JSON data renders in quota section."""
+        config = _make_config()
+        quota = QuotaInfo(
+            five_hour=QuotaData(utilization=0.27, resets_at="2026-04-16T18:00:00Z"),
+            seven_day=QuotaData(utilization=0.09, resets_at="2026-04-20T00:00:00Z"),
+            cache_age=10.0,
+            extra_usage=ExtraUsageData(
+                spent=130.06, budget=200.0, resets_at="2026-05-01T00:00:00Z"
+            ),
+        )
+        output = render(config, quota, None, None)
+        assert "Extra usage: $130.06 / $200.00" in output
+
+    def test_extra_usage_fallback_to_config(self):
+        """Extra usage falls back to config when JSON absent."""
+        config = _make_config(extra_usage_budget=100.0)
+        output = render(config, _make_quota(), None, None)
+        assert "Extra usage budget: $100.00" in output
 
 
 class TestFormatProjectDisplay:
