@@ -9,7 +9,7 @@ from cc_menubar.collectors.blocks import BlockInfo
 from cc_menubar.collectors.jsonl import AggregateData
 from cc_menubar.collectors.quota import QuotaInfo
 from cc_menubar.config import Config
-from cc_menubar.constants import BASH_TOOLS, EDIT_TOOLS, SECTION_SYMBOLS, THEME_PRESETS
+from cc_menubar.constants import EDIT_TOOLS, SECTION_SYMBOLS, THEME_PRESETS
 
 
 class Theme:
@@ -355,15 +355,10 @@ def _render_tools_section(
                 f" | font=Menlo size=11 color={theme.color('text')}"
             )
 
-    # Top bash commands
-    bash_commands: dict[str, int] = {}
-    for session in data.sessions:
-        for tool_idx, tool in enumerate(session.tools):
-            if tool in BASH_TOOLS:
-                for cmd in session.bash_commands:
-                    bash_commands[cmd] = bash_commands.get(cmd, 0) + 1
-
-    sorted_cmds = sorted(bash_commands.items(), key=lambda x: -x[1])[:config.tools_top_n]
+    # Top bash commands (pre-aggregated in JSONL collector)
+    sorted_cmds = sorted(
+        data.bash_command_counts.items(), key=lambda x: -x[1]
+    )[:config.tools_top_n]
     if sorted_cmds:
         max_cmd = sorted_cmds[0][1]
         lines.append("-----")

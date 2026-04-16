@@ -7,6 +7,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cc_menubar.bash_utils import extract_bash_commands
+from cc_menubar.constants import BASH_TOOLS
+
 
 @dataclass
 class SessionData:
@@ -110,6 +113,13 @@ def _parse_jsonl_file(path: Path, project: str, is_subagent: bool) -> SessionDat
                             tool_name = block.get("name", "")
                             if tool_name:
                                 session.tools.append(tool_name)
+                                # Extract bash commands from Bash tool input
+                                if tool_name in BASH_TOOLS:
+                                    cmd = block.get("input", {}).get("command", "")
+                                    if cmd:
+                                        session.bash_commands.extend(
+                                            extract_bash_commands(cmd)
+                                        )
 
                     # Token usage
                     usage = entry.get("message", {}).get("usage", {})
@@ -140,6 +150,10 @@ def read_jsonl(claude_dir: Path, max_age_days: int = 7) -> AggregateData | None:
             # Aggregate tool counts
             for tool in session.tools:
                 agg.tool_counts[tool] = agg.tool_counts.get(tool, 0) + 1
+
+            # Aggregate bash command counts
+            for cmd in session.bash_commands:
+                agg.bash_command_counts[cmd] = agg.bash_command_counts.get(cmd, 0) + 1
 
             # Aggregate model counts
             for model in session.models:
