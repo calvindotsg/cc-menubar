@@ -74,10 +74,14 @@ def render(
         from cc_menubar.render import render as do_render
 
         quota = read_quota()
-        blocks = read_blocks(
-            timeout=config.ccusage_timeout,
-            session_length=config.session_length,
-        ) if config.blocks_enabled else None
+        blocks = (
+            read_blocks(
+                timeout=config.ccusage_timeout,
+                session_length=config.session_length,
+            )
+            if config.blocks_enabled
+            else None
+        )
         jsonl_data = read_jsonl(
             config.get_claude_data_dir(),
             max_age_days=config.activity_days,
@@ -189,7 +193,6 @@ def _do_init(force: bool = False) -> None:
     if DEFAULT_CONFIG_PATH.is_file() and not force:
         return
 
-
     defaults_text = (
         importlib.resources.files("cc_menubar")
         .joinpath("defaults.toml")
@@ -235,9 +238,7 @@ def init(
 
 @app.command()
 def config(
-    default: Annotated[
-        bool, typer.Option("--default", help="Show bundled defaults.")
-    ] = False,
+    default: Annotated[bool, typer.Option("--default", help="Show bundled defaults.")] = False,
 ) -> None:
     """Show merged configuration.
 

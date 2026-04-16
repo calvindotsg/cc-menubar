@@ -55,9 +55,17 @@ RESEARCH_KEYWORDS = re.compile(
 EDIT_TOOLS = frozenset({"Edit", "Write", "FileEditTool", "FileWriteTool", "NotebookEdit"})
 READ_TOOLS = frozenset({"Read", "Grep", "Glob", "FileReadTool", "GrepTool", "GlobTool"})
 BASH_TOOLS = frozenset({"Bash", "BashTool", "PowerShellTool"})
-TASK_TOOLS = frozenset({
-    "TaskCreate", "TaskUpdate", "TaskGet", "TaskList", "TaskOutput", "TaskStop", "TodoWrite",
-})
+TASK_TOOLS = frozenset(
+    {
+        "TaskCreate",
+        "TaskUpdate",
+        "TaskGet",
+        "TaskList",
+        "TaskOutput",
+        "TaskStop",
+        "TodoWrite",
+    }
+)
 SEARCH_TOOLS = frozenset({"WebSearch", "WebFetch", "ToolSearch"})
 
 # ── Task categories ────────────────────────────────────────────────────────

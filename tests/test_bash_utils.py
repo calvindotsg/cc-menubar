@@ -49,3 +49,7 @@ def test_mixed_separators():
         "git",
         "git",
     ]
+
+
+def test_comment_skipped():
+    assert extract_bash_commands("# this is a comment") == []

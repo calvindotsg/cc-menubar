@@ -11,6 +11,13 @@ from cc_menubar.bash_utils import extract_bash_commands
 from cc_menubar.constants import BASH_TOOLS
 
 
+def _normalize_project_name(project: str) -> str:
+    """Merge worktree project names into parent."""
+    marker = "--claude-worktrees-"
+    idx = project.find(marker)
+    return project[:idx] if idx != -1 else project
+
+
 @dataclass
 class SessionData:
     """Aggregated data from a single JSONL session file."""
@@ -26,6 +33,7 @@ class SessionData:
     cache_write_tokens: int = 0
     turns: int = 0
     is_subagent: bool = False
+    cwd: str = ""
 
 
 @dataclass
@@ -38,6 +46,7 @@ class AggregateData:
     model_counts: dict[str, int] = field(default_factory=dict)
     project_counts: dict[str, int] = field(default_factory=dict)
     project_subagent_counts: dict[str, int] = field(default_factory=dict)
+    project_cwds: dict[str, str] = field(default_factory=dict)
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cache_read_tokens: int = 0
@@ -103,7 +112,9 @@ def _parse_jsonl_file(path: Path, project: str, is_subagent: bool) -> SessionDat
 
                 if msg_type == "assistant":
                     session.turns += 1
-                    model = entry.get("model", "")
+                    if not session.cwd and "cwd" in entry:
+                        session.cwd = entry["cwd"]
+                    model = entry.get("message", {}).get("model", "")
                     if model:
                         session.models.append(model)
 
@@ -117,9 +128,7 @@ def _parse_jsonl_file(path: Path, project: str, is_subagent: bool) -> SessionDat
                                 if tool_name in BASH_TOOLS:
                                     cmd = block.get("input", {}).get("command", "")
                                     if cmd:
-                                        session.bash_commands.extend(
-                                            extract_bash_commands(cmd)
-                                        )
+                                        session.bash_commands.extend(extract_bash_commands(cmd))
 
                     # Token usage
                     usage = entry.get("message", {}).get("usage", {})
@@ -143,7 +152,8 @@ def read_jsonl(claude_dir: Path, max_age_days: int = 7) -> AggregateData | None:
 
         agg = AggregateData()
 
-        for path, project, is_subagent in files:
+        for path, raw_project, is_subagent in files:
+            project = _normalize_project_name(raw_project)
             session = _parse_jsonl_file(path, project, is_subagent)
             agg.sessions.append(session)
 
@@ -165,6 +175,14 @@ def read_jsonl(claude_dir: Path, max_age_days: int = 7) -> AggregateData | None:
                 agg.project_subagent_counts[project] = (
                     agg.project_subagent_counts.get(project, 0) + session.turns
                 )
+
+            # Store cwd for project display
+            if session.cwd and project not in agg.project_cwds:
+                cwd = session.cwd
+                wt_marker = "/.claude/worktrees/"
+                if wt_marker in cwd:
+                    cwd = cwd[: cwd.index(wt_marker)]
+                agg.project_cwds[project] = cwd
 
             # Aggregate tokens
             agg.total_input_tokens += session.input_tokens

@@ -45,7 +45,7 @@ def extract_bash_commands(command: str) -> list[str]:
         first_token = segment.split()[0]
         base = PurePosixPath(first_token).name
 
-        if base and base != "cd":
+        if base and base not in ("cd", "#"):
             commands.append(base)
 
     return commands
