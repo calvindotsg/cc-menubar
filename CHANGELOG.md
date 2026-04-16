@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/calvindotsg/cc-menubar/compare/v0.2.0...v0.2.1) (2026-04-16)
+
+
+### Bug Fixes
+
+* rendering bugs for demo screenshots ([#2](https://github.com/calvindotsg/cc-menubar/issues/2)) ([125521d](https://github.com/calvindotsg/cc-menubar/commit/125521dc2bcb6ad9d9da7c13d8a0ec4ede4f42bd))
+
 ## [0.2.0](https://github.com/calvindotsg/cc-menubar/compare/v0.1.0...v0.2.0) (2026-04-16)
 
 
