@@ -31,7 +31,7 @@ def _make_config(**kwargs) -> Config:
     return Config(**defaults)
 
 
-def _make_quota(five_hour_util: float = 0.27, seven_day_util: float = 0.09) -> QuotaInfo:
+def _make_quota(five_hour_util: float = 27.0, seven_day_util: float = 9.0) -> QuotaInfo:
     return QuotaInfo(
         five_hour=QuotaData(utilization=five_hour_util, resets_at="2026-04-16T18:00:00Z"),
         seven_day=QuotaData(utilization=seven_day_util, resets_at="2026-04-20T00:00:00Z"),
@@ -81,7 +81,7 @@ class TestTitleLine:
     def test_threshold_color_warning(self):
         """Threshold color at 38% remaining (warning)."""
         config = _make_config(text="percent", color="threshold")
-        output = render(config, _make_quota(five_hour_util=0.62), None, None)
+        output = render(config, _make_quota(five_hour_util=62.0), None, None)
         lines = output.split("\n")
         assert "color=" in lines[0]
 
@@ -129,8 +129,8 @@ class TestDropdown:
         """Extra usage from JSON data renders in quota section."""
         config = _make_config()
         quota = QuotaInfo(
-            five_hour=QuotaData(utilization=0.27, resets_at="2026-04-16T18:00:00Z"),
-            seven_day=QuotaData(utilization=0.09, resets_at="2026-04-20T00:00:00Z"),
+            five_hour=QuotaData(utilization=27.0, resets_at="2026-04-16T18:00:00Z"),
+            seven_day=QuotaData(utilization=9.0, resets_at="2026-04-20T00:00:00Z"),
             cache_age=10.0,
             extra_usage=ExtraUsageData(
                 spent=130.06, budget=200.0, resets_at="2026-05-01T00:00:00Z"
@@ -144,6 +144,38 @@ class TestDropdown:
         config = _make_config(extra_usage_budget=100.0)
         output = render(config, _make_quota(), None, None)
         assert "Extra usage budget: $100.00" in output
+
+
+class TestQuotaPercentSemantics:
+    def test_percent_scale_rendering(self):
+        """Guard against scale-bug regression: utilization 0-100 → correct remaining %."""
+        config = _make_config()
+        quota = QuotaInfo(
+            five_hour=QuotaData(utilization=7.0, resets_at="2026-04-16T18:00:00Z"),
+            seven_day=QuotaData(utilization=30.0, resets_at="2026-04-20T00:00:00Z"),
+            cache_age=10.0,
+        )
+        output = render(config, quota, None, None)
+        assert "5-Hour: 93% remaining" in output
+        assert "7-Day: 70% remaining" in output
+
+    def test_sonnet_row_present(self):
+        """7-Day (Sonnet) row appears when seven_day_sonnet is populated."""
+        config = _make_config()
+        quota = QuotaInfo(
+            five_hour=QuotaData(utilization=7.0, resets_at="2026-04-16T18:00:00Z"),
+            seven_day=QuotaData(utilization=30.0, resets_at="2026-04-20T00:00:00Z"),
+            cache_age=10.0,
+            seven_day_sonnet=QuotaData(utilization=5.0, resets_at="2026-04-20T00:00:00Z"),
+        )
+        output = render(config, quota, None, None)
+        assert "7-Day (Sonnet): 95% remaining" in output
+
+    def test_sonnet_row_absent(self):
+        """7-Day (Sonnet) row is omitted when seven_day_sonnet is None."""
+        config = _make_config()
+        output = render(config, _make_quota(), None, None)
+        assert "7-Day (Sonnet)" not in output
 
 
 class TestFormatProjectDisplay:

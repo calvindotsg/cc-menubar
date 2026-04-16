@@ -40,7 +40,7 @@ A gauge icon showing remaining quota. The needle position reflects how much quot
 
 | Section | Content | Visibility |
 |---------|---------|------------|
-| Quota & Runway | 5h/7d remaining, pace vs reset, burn rate | Always |
+| Quota & Runway | 5h / 7d / 7d Sonnet remaining, pace vs reset, burn rate | Always |
 | Activity (7d) | Category bars with one-shot rate | Always |
 | Projects | Per-project calls + subagent % | Always |
 | Tools & Commands | Top tools, top bash commands | Always |
