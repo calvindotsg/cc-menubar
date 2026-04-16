@@ -11,6 +11,8 @@ from cc_menubar.collectors.quota import QuotaInfo
 from cc_menubar.config import Config
 from cc_menubar.constants import EDIT_TOOLS, SECTION_SYMBOLS, THEME_PRESETS
 
+_EDIT_CATEGORIES = frozenset({"coding", "debugging", "feature", "refactoring"})
+
 
 class Theme:
     """Color theme with light/dark pairs for SwiftBar."""
@@ -66,10 +68,28 @@ def _format_time_until(iso_str: str) -> str:
 def _format_tokens(count: int) -> str:
     """Format token count as human-readable string."""
     if count >= 1_000_000:
-        return f"{count / 1_000_000:.1f}M"
+        val = count / 1_000_000
+        return f"{val:.0f}M" if val == int(val) else f"{val:.1f}M"
     if count >= 1_000:
-        return f"{count / 1_000:.1f}K"
+        val = count / 1_000
+        return f"{val:.0f}K" if val == int(val) else f"{val:.1f}K"
     return str(count)
+
+
+def _format_project_display(cwd: str) -> str:
+    """Format a project cwd path for short display.
+
+    /Users/calvin/Documents/github/calvindotsg/cc-menubar -> calvindotsg/cc-menubar
+    /Users/calvin/.config -> .config
+    """
+    from pathlib import Path
+
+    home = str(Path.home())
+    rel = cwd[len(home) :].lstrip("/") if cwd.startswith(home) else cwd
+    github_prefix = "Documents/github/"
+    if rel.startswith(github_prefix):
+        return rel[len(github_prefix) :]
+    return rel
 
 
 def render(
@@ -133,9 +153,7 @@ def _get_remaining(quota: QuotaInfo | None, metric: str) -> float | None:
     return None
 
 
-def _render_title(
-    lines: list[str], config: Config, theme: Theme, remaining: float | None
-) -> None:
+def _render_title(lines: list[str], config: Config, theme: Theme, remaining: float | None) -> None:
     """Render the menu bar title line."""
     parts: list[str] = []
 
@@ -245,14 +263,12 @@ def _render_quota_section(
         if block_duration > 0:
             rate = block_calls / block_duration
             lines.append(
-                f"--Burn rate: {rate:.1f} calls/min (current block)"
+                f"--Burn rate: {rate:.1f} turns/min (current block)"
                 f" | color={theme.color('subtext')} font=Menlo size=11"
             )
 
 
-def _render_activity_section(
-    lines: list[str], theme: Theme, data: AggregateData
-) -> None:
+def _render_activity_section(lines: list[str], theme: Theme, data: AggregateData) -> None:
     """Render Activity (7d) dropdown section."""
     sym = SECTION_SYMBOLS["activity"]
     lines.append(f"Activity (7d) | sfimage={sym} color={theme.color('header')} fold=true")
@@ -277,7 +293,12 @@ def _render_activity_section(
         matching = [s for s in data.sessions if classify_session_category(s) == name]
         total_sessions = len(matching)
         one_shot = sum(1 for s in matching if _is_one_shot(s))
-        one_shot_rate = f"{int(one_shot / total_sessions * 100)}%" if total_sessions > 0 else "-"
+        if name not in _EDIT_CATEGORIES:
+            one_shot_rate = "-"
+        elif total_sessions > 0:
+            one_shot_rate = f"{int(one_shot / total_sessions * 100)}%"
+        else:
+            one_shot_rate = "-"
         lines.append(
             f"--{bar}  {name:<14} {count:>5} turns  {one_shot_rate:>4} 1-shot"
             f" | font=Menlo size=11 color={theme.color('text')}"
@@ -319,19 +340,25 @@ def _render_projects_section(
         lines.append(f"--No project data | color={theme.color('subtext')}")
         return
 
-    sorted_projects = sorted(data.project_counts.items(), key=lambda x: -x[1])
+    sorted_projects = [
+        (p, c) for p, c in sorted(data.project_counts.items(), key=lambda x: -x[1]) if c > 0
+    ]
 
-    for project, calls in sorted_projects:
-        display_name = config.project_aliases.get(project, project)
-        # Truncate long names
+    for project, turns in sorted_projects:
+        if project in config.project_aliases:
+            display_name = config.project_aliases[project]
+        elif project in data.project_cwds:
+            display_name = _format_project_display(data.project_cwds[project])
+        else:
+            display_name = project
         if len(display_name) > 30:
-            display_name = display_name[:27] + "..."
+            display_name = "..." + display_name[-27:]
         subagent_count = data.project_subagent_counts.get(project, 0)
         subagent_pct = ""
         if subagent_count > 0:
-            subagent_pct = f"  ({int(subagent_count / calls * 100)}% subagent)"
+            subagent_pct = f"  ({int(subagent_count / turns * 100)}% subagent)"
         lines.append(
-            f"--{display_name:<30} {calls:>5} calls{subagent_pct}"
+            f"--{display_name:<30} {turns:>5} turns{subagent_pct}"
             f" | font=Menlo size=11 color={theme.color('text')}"
         )
 
@@ -344,21 +371,20 @@ def _render_tools_section(
     lines.append(f"Tools & Commands | sfimage={sym} color={theme.color('header')} fold=true")
 
     # Top tools
-    sorted_tools = sorted(data.tool_counts.items(), key=lambda x: -x[1])[:config.tools_top_n]
+    sorted_tools = sorted(data.tool_counts.items(), key=lambda x: -x[1])[: config.tools_top_n]
     if sorted_tools:
         max_tool = sorted_tools[0][1]
         lines.append(f"--Top Tools | color={theme.color('accent')} size=12")
         for name, count in sorted_tools:
             bar = _mini_bar(count, max_tool)
             lines.append(
-                f"--{bar}  {name:<20} {count:>5}"
-                f" | font=Menlo size=11 color={theme.color('text')}"
+                f"--{bar}  {name:<20} {count:>5} | font=Menlo size=11 color={theme.color('text')}"
             )
 
     # Top bash commands (pre-aggregated in JSONL collector)
-    sorted_cmds = sorted(
-        data.bash_command_counts.items(), key=lambda x: -x[1]
-    )[:config.tools_top_n]
+    sorted_cmds = sorted(data.bash_command_counts.items(), key=lambda x: -x[1])[
+        : config.tools_top_n
+    ]
     if sorted_cmds:
         max_cmd = sorted_cmds[0][1]
         lines.append("-----")
@@ -366,8 +392,7 @@ def _render_tools_section(
         for name, count in sorted_cmds:
             bar = _mini_bar(count, max_cmd)
             lines.append(
-                f"--{bar}  {name:<20} {count:>5}"
-                f" | font=Menlo size=11 color={theme.color('text')}"
+                f"--{bar}  {name:<20} {count:>5} | font=Menlo size=11 color={theme.color('text')}"
             )
 
 
@@ -380,9 +405,7 @@ def _calc_opus_pct(data: AggregateData) -> float | None:
     return opus_count / total
 
 
-def _render_opusplan_section(
-    lines: list[str], theme: Theme, data: AggregateData
-) -> None:
+def _render_opusplan_section(lines: list[str], theme: Theme, data: AggregateData) -> None:
     """Render Opusplan Health dropdown section (conditional)."""
     # Only show if Opus model detected
     opus_pct = _calc_opus_pct(data)
@@ -405,20 +428,18 @@ def _render_opusplan_section(
         bar = _mini_bar(count, max_model)
         pct = int(count / total * 100) if total > 0 else 0
         lines.append(
-            f"--{bar}  {model_name:<24} {pct:>3}%  {count:>5} calls"
+            f"--{bar}  {model_name:<24} {pct:>3}%  {count:>5} turns"
             f" | font=Menlo size=11 color={theme.color('text')}"
         )
 
     # Explore agent count
     explore_tools = {"Grep", "Glob", "Read"}
     explore_count = sum(
-        1 for s in data.sessions
-        if s.is_subagent and any(t in explore_tools for t in s.tools)
+        1 for s in data.sessions if s.is_subagent and any(t in explore_tools for t in s.tools)
     )
     if explore_count > 0:
         lines.append(
-            f"--Explore agents: {explore_count}"
-            f" | font=Menlo size=11 color={theme.color('subtext')}"
+            f"--Explore agents: {explore_count} | font=Menlo size=11 color={theme.color('subtext')}"
         )
 
 
@@ -427,10 +448,7 @@ def _render_context_section(
 ) -> None:
     """Render Context Efficiency dropdown section (conditional)."""
     # Only show if sufficient session data exists
-    sessions_with_tokens = [
-        s for s in data.sessions
-        if s.input_tokens > 0 and not s.is_subagent
-    ]
+    sessions_with_tokens = [s for s in data.sessions if s.input_tokens > 0 and not s.is_subagent]
     if len(sessions_with_tokens) < 3:
         return
 
@@ -450,8 +468,9 @@ def _render_context_section(
     p90 = context_sizes[min(p90_idx, len(context_sizes) - 1)] if context_sizes else 0
 
     large_role = "error" if large_pct > 50 else ("warning" if large_pct > 25 else "success")
+    threshold_label = _format_tokens(threshold)
     lines.append(
-        f"-->150K sessions: {large_pct}%"
+        f"--Large sessions (>{threshold_label}): {large_pct}%"
         f" | font=Menlo size=12 color={theme.color(large_role)}"
     )
     lines.append(
@@ -464,8 +483,7 @@ def _render_context_section(
     if total_input > 0:
         cache_hit = int(data.total_cache_read_tokens / total_input * 100)
         lines.append(
-            f"--Cache hit rate: {cache_hit}%"
-            f" | font=Menlo size=11 color={theme.color('text')}"
+            f"--Cache hit rate: {cache_hit}% | font=Menlo size=11 color={theme.color('text')}"
         )
 
 
@@ -473,9 +491,5 @@ def _render_footer(lines: list[str], theme: Theme) -> None:
     """Render footer with refresh and actions."""
     lines.append("---")
     lines.append("Refresh | refresh=true")
-    lines.append(
-        "ccusage daily | terminal=true shell=ccusage param1=daily"
-    )
-    lines.append(
-        "ccusage blocks | terminal=true shell=ccusage param1=blocks param2=--active"
-    )
+    lines.append("ccusage daily | terminal=true shell=ccusage param1=daily")
+    lines.append("ccusage blocks | terminal=true shell=ccusage param1=blocks param2=--active")

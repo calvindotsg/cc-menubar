@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from cc_menubar.collectors.quota import QuotaData, QuotaInfo
 from cc_menubar.config import Config
-from cc_menubar.render import Theme, render
+from cc_menubar.render import Theme, _format_project_display, render
 
 
 def _make_config(**kwargs) -> Config:
@@ -123,3 +123,19 @@ class TestDropdown:
         config = _make_config()
         output = render(config, None, None, None)
         assert "Refresh | refresh=true" in output
+
+
+class TestFormatProjectDisplay:
+    def test_github_path(self):
+        from pathlib import Path
+
+        home = str(Path.home())
+        cwd = f"{home}/Documents/github/calvindotsg/cc-menubar"
+        assert _format_project_display(cwd) == "calvindotsg/cc-menubar"
+
+    def test_dotdir_path(self):
+        from pathlib import Path
+
+        home = str(Path.home())
+        cwd = f"{home}/.config"
+        assert _format_project_display(cwd) == ".config"
