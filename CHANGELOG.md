@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/calvindotsg/cc-menubar/compare/v0.2.3...v0.3.0) (2026-04-17)
+
+
+### Features
+
+* /usage parity, plain-English labels, ccusage click fix ([#9](https://github.com/calvindotsg/cc-menubar/issues/9)) ([1625b8d](https://github.com/calvindotsg/cc-menubar/commit/1625b8d3d70fbae7d8dae9f47842fbfd17397aa5))
+
 ## [0.2.3](https://github.com/calvindotsg/cc-menubar/compare/v0.2.2...v0.2.3) (2026-04-16)
 
 
