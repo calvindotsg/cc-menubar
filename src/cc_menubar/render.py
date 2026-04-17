@@ -1,8 +1,14 @@
-"""SwiftBar output formatter and Theme class."""
+"""SwiftBar output formatter and Theme class.
+
+User-facing display strings are centralized in `cc_menubar.labels`. Do not
+hardcode dropdown copy here — import from `LABELS` / `TOOLTIPS` instead.
+"""
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 from cc_menubar.classifier import classify_aggregate
 from cc_menubar.collectors.blocks import BlockInfo
@@ -10,8 +16,41 @@ from cc_menubar.collectors.jsonl import AggregateData
 from cc_menubar.collectors.quota import QuotaInfo
 from cc_menubar.config import Config
 from cc_menubar.constants import EDIT_TOOLS, SECTION_SYMBOLS, THEME_PRESETS
+from cc_menubar.labels import LABELS, TOOLTIPS
 
 _EDIT_CATEGORIES = frozenset({"coding", "debugging", "feature", "refactoring"})
+
+CCUSAGE_HELPER_PATH = (
+    Path.home()
+    / "Library"
+    / "Application Support"
+    / "SwiftBar"
+    / "plugins"
+    / ".cc-menubar-ccusage.sh"
+)
+
+
+def _tooltip(key: str) -> str:
+    """Return a SwiftBar `tooltip=...` param for the given TOOLTIPS key.
+
+    Wraps in double quotes so apostrophes in content don't terminate the
+    value (SwiftBar's quoted-value parser can't nest the same quote char).
+    """
+    return f'tooltip="{TOOLTIPS[key]}"'
+
+
+_MODEL_PATTERN = re.compile(r"^claude-(opus|sonnet|haiku)-(\d+)-(\d+)")
+
+
+def _format_model_name(model_id: str) -> str:
+    """claude-opus-4-6 -> 'Opus 4.6'; <synthetic> passthrough; unknowns verbatim."""
+    if not model_id or model_id.startswith("<"):
+        return model_id
+    m = _MODEL_PATTERN.match(model_id)
+    if not m:
+        return model_id
+    family, major, minor = m.groups()
+    return f"{family.capitalize()} {major}.{minor}"
 
 
 class Theme:
@@ -48,7 +87,10 @@ def _mini_bar(value: float, max_val: float, width: int = 10) -> str:
 
 
 def _format_time_until(iso_str: str) -> str:
-    """Format time until an ISO timestamp as human-readable string."""
+    """Format time until an ISO timestamp as human-readable string.
+
+    Returns "{d}d {h}h {m}m" when days > 0, else "{h}h {m}m" / "{m}m".
+    """
     try:
         target = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
         now = datetime.now(UTC)
@@ -56,13 +98,36 @@ def _format_time_until(iso_str: str) -> str:
         total_seconds = int(delta.total_seconds())
         if total_seconds <= 0:
             return "now"
-        hours, remainder = divmod(total_seconds, 3600)
+        days, remainder = divmod(total_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
         minutes = remainder // 60
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
         if hours > 0:
             return f"{hours}h {minutes}m"
         return f"{minutes}m"
     except (ValueError, TypeError):
         return "?"
+
+
+def _format_reset_absolute(iso_str: str) -> str:
+    """Format an ISO-8601 reset timestamp as a short local-tz wall-clock string.
+
+    Same local date as now: "9am" / "12:30pm" (lowercase am/pm, no leading
+    zero, omit minutes when :00). Different date: "Apr 24 at 7am".
+    """
+    try:
+        target = datetime.fromisoformat(iso_str.replace("Z", "+00:00")).astimezone()
+        now = datetime.now().astimezone()
+    except (ValueError, TypeError):
+        return "?"
+
+    hour = target.hour % 12 or 12
+    suffix = "am" if target.hour < 12 else "pm"
+    clock = f"{hour}{suffix}" if target.minute == 0 else f"{hour}:{target.minute:02d}{suffix}"
+    if target.date() == now.date():
+        return clock
+    return f"{target.strftime('%b')} {target.day} at {clock}"
 
 
 def _format_tokens(count: int) -> str:
@@ -82,8 +147,6 @@ def _format_project_display(cwd: str) -> str:
     /Users/calvin/Documents/github/calvindotsg/cc-menubar -> calvindotsg/cc-menubar
     /Users/calvin/.config -> .config
     """
-    from pathlib import Path
-
     home = str(Path.home())
     rel = cwd[len(home) :].lstrip("/") if cwd.startswith(home) else cwd
     github_prefix = "Documents/github/"
@@ -225,36 +288,40 @@ def _render_quota_section(
     blocks: BlockInfo | None,
     config: Config,
 ) -> None:
-    """Render Quota & Runway dropdown section."""
+    """Render Time Left & Limits dropdown section."""
     sym = SECTION_SYMBOLS["quota"]
-    lines.append(f"Quota & Runway | sfimage={sym} color={theme.color('header')} fold=true")
+    header = LABELS["section.rate_limits"]
+    lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
 
     if not quota:
         lines.append(f"--No quota data | color={theme.color('subtext')}")
         return
 
-    for window, data, label in [
-        ("5h", quota.five_hour, "5-Hour"),
-        ("7d", quota.seven_day, "7-Day"),
-        ("7ds", quota.seven_day_sonnet, "7-Day (Sonnet)"),
+    row_suffix = LABELS["rate_limits.row_suffix"]
+    for key, data in [
+        ("rate_limits.five_hour", quota.five_hour),
+        ("rate_limits.seven_day", quota.seven_day),
+        ("rate_limits.seven_day_sonnet", quota.seven_day_sonnet),
     ]:
         if not data:
             continue
         remaining = max(0.0, 1.0 - data.utilization / 100.0)
         pct = int(remaining * 100)
         role = theme.threshold_role(remaining)
-        resets_in = _format_time_until(data.resets_at) if data.resets_at else "?"
-        lines.append(
-            f"--{label}: {pct}% remaining  (resets in {resets_in})"
-            f" | color={theme.color(role)} font=Menlo size=12"
-        )
+        abs_reset = _format_reset_absolute(data.resets_at) if data.resets_at else "?"
+        rel_reset = _format_time_until(data.resets_at) if data.resets_at else "?"
+        row = f"{LABELS[key]}: " + row_suffix.format(pct=pct, abs=abs_reset, rel=rel_reset)
+        lines.append(f"--{row} | color={theme.color(role)} font=Menlo size=12 {_tooltip(key)}")
 
-    # Extra usage: prefer JSON data, fall back to config
+    # Extra usage: prefer JSON data, fall back to config. Labels stay verbatim
+    # ("Extra usage" is a common Claude term, not jargon to re-render).
     if quota and quota.extra_usage:
         eu = quota.extra_usage
         eu_text = f"Extra usage: ${eu.spent:.2f} / ${eu.budget:.2f}"
         if eu.resets_at:
-            eu_text += f" \u00b7 resets {_format_time_until(eu.resets_at)}"
+            abs_reset = _format_reset_absolute(eu.resets_at)
+            rel_reset = _format_time_until(eu.resets_at)
+            eu_text += f" \u00b7 resets {abs_reset} \u00b7 in {rel_reset}"
         lines.append(f"--{eu_text} | color={theme.color('subtext')} font=Menlo size=11")
     elif config.extra_usage_budget > 0:
         lines.append(
@@ -262,23 +329,32 @@ def _render_quota_section(
             f" | color={theme.color('subtext')} font=Menlo size=11"
         )
 
-    # Burn rate from blocks
+    # Active 5h ccusage block: cost so far, hourly burn rate, time until close.
     if blocks and blocks.active_block:
         active = blocks.active_block
-        block_calls = active.get("calls", active.get("turns", 0))
-        block_duration = active.get("duration_minutes", active.get("duration", 0))
-        if block_duration > 0:
-            rate = block_calls / block_duration
+        cost_so_far = active.get("costUSD", 0.0)
+        cost_per_hr = active.get("burnRate", {}).get("costPerHour")
+        remaining_min = active.get("projection", {}).get("remainingMinutes")
+        parts: list[str] = []
+        if cost_so_far:
+            parts.append(f"${cost_so_far:.2f} so far")
+        if cost_per_hr is not None:
+            parts.append(f"${cost_per_hr:.1f}/hr")
+        if remaining_min is not None:
+            parts.append(f"~{int(remaining_min)}m left")
+        if parts:
+            row = LABELS["active_block.row"].format(parts=" \u00b7 ".join(parts))
             lines.append(
-                f"--Burn rate: {rate:.1f} turns/min (current block)"
-                f" | color={theme.color('subtext')} font=Menlo size=11"
+                f"--{row} | color={theme.color('subtext')} font=Menlo size=11"
+                f" {_tooltip('active_block.row')}"
             )
 
 
 def _render_activity_section(lines: list[str], theme: Theme, data: AggregateData) -> None:
-    """Render Activity (7d) dropdown section."""
+    """Render Activity (last 7d) dropdown section."""
     sym = SECTION_SYMBOLS["activity"]
-    lines.append(f"Activity (7d) | sfimage={sym} color={theme.color('header')} fold=true")
+    header = LABELS["section.activity"]
+    lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
 
     categories = classify_aggregate(data)
     # Sort by count descending, filter zeros
@@ -301,14 +377,17 @@ def _render_activity_section(lines: list[str], theme: Theme, data: AggregateData
         total_sessions = len(matching)
         one_shot = sum(1 for s in matching if _is_one_shot(s))
         if name not in _EDIT_CATEGORIES:
-            one_shot_rate = "-"
+            first_try = "-"
+            tooltip_suffix = f" {_tooltip('activity.turns')}"
         elif total_sessions > 0:
-            one_shot_rate = f"{int(one_shot / total_sessions * 100)}%"
+            first_try = LABELS["activity.one_shot"].format(pct=int(one_shot / total_sessions * 100))
+            tooltip_suffix = f" {_tooltip('activity.one_shot')}"
         else:
-            one_shot_rate = "-"
+            first_try = "-"
+            tooltip_suffix = f" {_tooltip('activity.turns')}"
         lines.append(
-            f"--{bar}  {name:<14} {count:>5} turns  {one_shot_rate:>4} 1-shot"
-            f" | font=Menlo size=11 color={theme.color('text')}"
+            f"--{bar}  {name:<14} {count:>5} turns  {first_try:>16}"
+            f" | font=Menlo size=11 color={theme.color('text')}{tooltip_suffix}"
         )
 
 
@@ -341,7 +420,8 @@ def _render_projects_section(
 ) -> None:
     """Render Projects dropdown section."""
     sym = SECTION_SYMBOLS["projects"]
-    lines.append(f"Projects | sfimage={sym} color={theme.color('header')} fold=true")
+    header = LABELS["section.projects"]
+    lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
 
     if not data.project_counts:
         lines.append(f"--No project data | color={theme.color('subtext')}")
@@ -361,12 +441,16 @@ def _render_projects_section(
         if len(display_name) > 30:
             display_name = "..." + display_name[-27:]
         subagent_count = data.project_subagent_counts.get(project, 0)
-        subagent_pct = ""
+        suffix = ""
+        tooltip_suffix = ""
         if subagent_count > 0:
-            subagent_pct = f"  ({int(subagent_count / turns * 100)}% subagent)"
+            suffix = "  " + LABELS["projects.subagent"].format(
+                pct=int(subagent_count / turns * 100)
+            )
+            tooltip_suffix = f" {_tooltip('projects.subagent')}"
         lines.append(
-            f"--{display_name:<30} {turns:>5} turns{subagent_pct}"
-            f" | font=Menlo size=11 color={theme.color('text')}"
+            f"--{display_name:<30} {turns:>5} turns{suffix}"
+            f" | font=Menlo size=11 color={theme.color('text')}{tooltip_suffix}"
         )
 
 
@@ -375,7 +459,8 @@ def _render_tools_section(
 ) -> None:
     """Render Tools & Commands dropdown section."""
     sym = SECTION_SYMBOLS["tools"]
-    lines.append(f"Tools & Commands | sfimage={sym} color={theme.color('header')} fold=true")
+    header = LABELS["section.tools"]
+    lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
 
     # Top tools
     sorted_tools = sorted(data.tool_counts.items(), key=lambda x: -x[1])[: config.tools_top_n]
@@ -413,7 +498,7 @@ def _calc_opus_pct(data: AggregateData) -> float | None:
 
 
 def _render_opusplan_section(lines: list[str], theme: Theme, data: AggregateData) -> None:
-    """Render Opusplan Health dropdown section (conditional)."""
+    """Render Model Mix dropdown section (conditional; renamed from Opusplan Health)."""
     # Only show if Opus model detected
     opus_pct = _calc_opus_pct(data)
     if opus_pct is None:
@@ -424,29 +509,38 @@ def _render_opusplan_section(lines: list[str], theme: Theme, data: AggregateData
         return
 
     sym = SECTION_SYMBOLS["opusplan"]
-    lines.append(f"Opusplan Health | sfimage={sym} color={theme.color('header')} fold=true")
+    header = LABELS["section.model_mix"]
+    lines.append(
+        f"{header} | sfimage={sym} color={theme.color('header')} fold=true"
+        f" {_tooltip('model_mix.header')}"
+    )
 
-    # Model breakdown
+    # Model breakdown. Aggregation is keyed by raw id (so opus-4-6 and
+    # opus-4-7 aggregate separately); only the display string goes through
+    # _format_model_name.
     total = sum(data.model_counts.values())
     sorted_models = sorted(data.model_counts.items(), key=lambda x: -x[1])
     max_model = sorted_models[0][1] if sorted_models else 1
 
-    for model_name, count in sorted_models:
+    for model_id, count in sorted_models:
         bar = _mini_bar(count, max_model)
         pct = int(count / total * 100) if total > 0 else 0
+        display = _format_model_name(model_id)
         lines.append(
-            f"--{bar}  {model_name:<24} {pct:>3}%  {count:>5} turns"
+            f"--{bar}  {display:<24} {pct:>3}%  {count:>5} turns"
             f" | font=Menlo size=11 color={theme.color('text')}"
         )
 
-    # Explore agent count
-    explore_tools = {"Grep", "Glob", "Read"}
-    explore_count = sum(
-        1 for s in data.sessions if s.is_subagent and any(t in explore_tools for t in s.tools)
+    # Research agents (sub-agents that used search/read tools only).
+    research_tools = {"Grep", "Glob", "Read"}
+    research_count = sum(
+        1 for s in data.sessions if s.is_subagent and any(t in research_tools for t in s.tools)
     )
-    if explore_count > 0:
+    if research_count > 0:
+        row = LABELS["model_mix.research_agents"].format(n=research_count)
         lines.append(
-            f"--Explore agents: {explore_count} | font=Menlo size=11 color={theme.color('subtext')}"
+            f"--{row} | font=Menlo size=11 color={theme.color('subtext')}"
+            f" {_tooltip('model_mix.research_agents')}"
         )
 
 
@@ -460,7 +554,8 @@ def _render_context_section(
         return
 
     sym = SECTION_SYMBOLS["context"]
-    lines.append(f"Context Efficiency | sfimage={sym} color={theme.color('header')} fold=true")
+    header = LABELS["section.context"]
+    lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
 
     # Context sizes
     context_sizes = sorted([s.input_tokens for s in sessions_with_tokens])
@@ -468,7 +563,7 @@ def _render_context_section(
     large_count = sum(1 for s in sessions_with_tokens if s.input_tokens > threshold)
     large_pct = int(large_count / len(sessions_with_tokens) * 100)
 
-    # P50/P90
+    # P50/P90 (displayed as Typical / Longest 10%)
     p50_idx = len(context_sizes) // 2
     p90_idx = int(len(context_sizes) * 0.9)
     p50 = context_sizes[p50_idx] if context_sizes else 0
@@ -476,27 +571,45 @@ def _render_context_section(
 
     large_role = "error" if large_pct > 50 else ("warning" if large_pct > 25 else "success")
     threshold_label = _format_tokens(threshold)
+    large_row = LABELS["context.large_sessions"].format(threshold=threshold_label, pct=large_pct)
+    lines.append(f"--{large_row} | font=Menlo size=12 color={theme.color(large_role)}")
+    pct_row = LABELS["context.percentiles"].format(p50=_format_tokens(p50), p90=_format_tokens(p90))
     lines.append(
-        f"--Large sessions (>{threshold_label}): {large_pct}%"
-        f" | font=Menlo size=12 color={theme.color(large_role)}"
-    )
-    lines.append(
-        f"--P50 context: {_format_tokens(p50)}  P90: {_format_tokens(p90)}"
-        f" | font=Menlo size=11 color={theme.color('text')}"
+        f"--{pct_row} | font=Menlo size=11 color={theme.color('text')}"
+        f" {_tooltip('context.percentiles')}"
     )
 
-    # Cache hit %
+    # Context reuse (cache-hit rate)
     total_input = data.total_input_tokens + data.total_cache_read_tokens
     if total_input > 0:
         cache_hit = int(data.total_cache_read_tokens / total_input * 100)
+        reuse_row = LABELS["context.cache_reuse"].format(pct=cache_hit)
         lines.append(
-            f"--Cache hit rate: {cache_hit}% | font=Menlo size=11 color={theme.color('text')}"
+            f"--{reuse_row} | font=Menlo size=11 color={theme.color('text')}"
+            f" {_tooltip('context.cache_reuse')}"
         )
 
 
 def _render_footer(lines: list[str], theme: Theme) -> None:
-    """Render footer with refresh and actions."""
+    """Render footer with refresh and ccusage actions (when helper present).
+
+    The helper script owns the Ghostty spawn. We route with terminal=false
+    so SwiftBar uses its Process path and bypasses the Ghostty AppleScript
+    race (buildTerminalCommand's fish-syntax env preamble + no-delay
+    `input text`). refresh=false keeps the menu stable while the terminal
+    window is still open.
+    """
     lines.append("---")
     lines.append("Refresh | refresh=true")
-    lines.append("ccusage daily | terminal=true shell=ccusage param1=daily")
-    lines.append("ccusage blocks | terminal=true shell=ccusage param1=blocks param2=--active")
+
+    if CCUSAGE_HELPER_PATH.exists():
+        helper_q = str(CCUSAGE_HELPER_PATH).replace(" ", "\\ ")
+        lines.append(
+            f"{LABELS['footer.ccusage_daily']} | bash={helper_q} param1=daily"
+            f" terminal=false refresh=false {_tooltip('footer.ccusage_daily')}"
+        )
+        lines.append(
+            f"{LABELS['footer.ccusage_blocks']} | bash={helper_q} param1=blocks"
+            f" param2=--active terminal=false refresh=false"
+            f" {_tooltip('footer.ccusage_blocks')}"
+        )
