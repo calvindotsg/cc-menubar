@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/calvindotsg/cc-menubar/compare/v0.3.0...v0.3.1) (2026-04-17)
+
+
+### Bug Fixes
+
+* replace section-header tooltips with caption rows ([#11](https://github.com/calvindotsg/cc-menubar/issues/11)) ([5f4fafc](https://github.com/calvindotsg/cc-menubar/commit/5f4fafcecb31e6594bf79f2bdecb36c60eff61dd))
+
 ## [0.3.0](https://github.com/calvindotsg/cc-menubar/compare/v0.2.3...v0.3.0) (2026-04-17)
 
 
