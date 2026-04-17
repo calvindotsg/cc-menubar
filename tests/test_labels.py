@@ -161,6 +161,50 @@ class TestTooltipsPresent:
             TOOLTIPS["rate_limits.five_hour"],
             TOOLTIPS["context.percentiles"],
             TOOLTIPS["context.cache_reuse"],
-            TOOLTIPS["model_mix.header"],
+            TOOLTIPS["context.large_sessions"],
         ):
             assert needle in output, f"Tooltip missing: {needle!r}"
+
+    def test_no_tooltip_on_submenu_parents(self):
+        """Section headers with `--` children must not carry tooltip= (AppKit
+        would show the tooltip popover alongside the submenu)."""
+        output = _render_full()
+        for line in output.splitlines():
+            # Header lines have fold=true and are NOT prefixed with --
+            if "fold=true" in line and not line.startswith("--"):
+                assert "tooltip=" not in line, (
+                    f"Section header carries tooltip= (dual-popover collision): {line!r}"
+                )
+
+
+class TestCaptionsPresent:
+    """Each section that needs explanation has a disabled caption row at
+    the top of its submenu — not a tooltip on the parent."""
+
+    CAPTION_KEYS = (
+        "section.activity_caption",
+        "section.model_mix_caption",
+        "section.context_caption",
+    )
+
+    def test_caption_strings_rendered(self):
+        output = _render_full()
+        for key in self.CAPTION_KEYS:
+            assert LABELS[key] in output, f"Caption {key} missing from output"
+
+    def test_caption_rows_are_disabled(self):
+        """Caption rows must be disabled=true so they're greyed out and
+        non-clickable, matching the 'informational' intent."""
+        output = _render_full()
+        for key in self.CAPTION_KEYS:
+            caption = LABELS[key]
+            matching = [line for line in output.splitlines() if caption in line]
+            assert matching, f"No line contains caption {key}"
+            for line in matching:
+                assert "disabled=true" in line, (
+                    f"Caption row for {key} missing disabled=true: {line!r}"
+                )
+                assert line.startswith("--"), (
+                    f"Caption row for {key} must be a submenu child (--): {line!r}"
+                )
+                assert "size=10" in line, f"Caption row for {key} missing size=10: {line!r}"

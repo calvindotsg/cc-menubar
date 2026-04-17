@@ -12,6 +12,12 @@ Conventions:
   never hardcode user-facing copy in render.py.
 - Tooltips explain jargon that stays for brevity. SwiftBar surfaces them via
   the `tooltip=` per-item parameter.
+- Section-level explanation goes in LABELS keyed `section.<name>_caption` and
+  renders via `_caption()` as a disabled greyed-out row at the top of the
+  submenu — never as a tooltip on a parent menu item. AppKit shows tooltip
+  and submenu simultaneously on items with `--` children, so a tooltip on
+  the parent collides with the submenu the user just opened. TOOLTIPS is
+  reserved for leaf-row hover copy only.
 
 Adding a label:
 1. Add the canonical key to LABELS (and TOOLTIPS if the row needs a hover
@@ -30,6 +36,11 @@ LABELS: dict[str, str] = {
     "section.tools": "Tools & Commands",
     "section.model_mix": "Model Mix",
     "section.context": "Context Size",
+    # Submenu caption rows (disabled greyed-out first row in submenu;
+    # replaces section-header tooltips to avoid AppKit dual-popover collision)
+    "section.activity_caption": "Activity by category over the last 7 days",
+    "section.model_mix_caption": "Which Claude model handled each turn over the last 7 days",
+    "section.context_caption": "Conversation length and prompt-cache reuse over the last 7 days",
     # Quota rows
     "rate_limits.five_hour": "5-Hour",
     "rate_limits.seven_day": "7-Day",
@@ -63,8 +74,10 @@ TOOLTIPS: dict[str, str] = {
     "activity.turns": "Each turn = one Claude response (message plus tool calls)",
     "activity.one_shot": "Share of edit sessions that didn't need a retry",
     "projects.subagent": "Share of turns delegated to sub-agents (Task / Agent tool)",
-    "model_mix.header": "Which Claude model handled each turn over the last 7 days",
     "model_mix.research_agents": "Sub-agents that used search/read tools only (Grep, Glob, Read)",
+    "context.large_sessions": (
+        "Sessions whose total input tokens exceed your large_session_threshold setting"
+    ),
     "context.percentiles": (
         "Input-token counts per session. Typical = median; Longest 10% = 90th percentile."
     ),
