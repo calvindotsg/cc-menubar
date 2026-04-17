@@ -39,6 +39,17 @@ def _tooltip(key: str) -> str:
     return f'tooltip="{TOOLTIPS[key]}"'
 
 
+def _caption(key: str, theme: Theme) -> str:
+    """Render a disabled greyed-out caption row at the start of a submenu.
+
+    Replaces section-header tooltips, which collide with submenu popovers
+    in macOS — AppKit shows tooltip and submenu simultaneously on parent
+    menu items. The caption is visible the moment the submenu opens: no
+    hover delay, no popover collision.
+    """
+    return f"--{LABELS[key]} | size=10 color={theme.color('subtext')} font=Menlo disabled=true"
+
+
 _MODEL_PATTERN = re.compile(r"^claude-(opus|sonnet|haiku)-(\d+)-(\d+)")
 
 
@@ -355,6 +366,7 @@ def _render_activity_section(lines: list[str], theme: Theme, data: AggregateData
     sym = SECTION_SYMBOLS["activity"]
     header = LABELS["section.activity"]
     lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
+    lines.append(_caption("section.activity_caption", theme))
 
     categories = classify_aggregate(data)
     # Sort by count descending, filter zeros
@@ -510,10 +522,8 @@ def _render_opusplan_section(lines: list[str], theme: Theme, data: AggregateData
 
     sym = SECTION_SYMBOLS["opusplan"]
     header = LABELS["section.model_mix"]
-    lines.append(
-        f"{header} | sfimage={sym} color={theme.color('header')} fold=true"
-        f" {_tooltip('model_mix.header')}"
-    )
+    lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
+    lines.append(_caption("section.model_mix_caption", theme))
 
     # Model breakdown. Aggregation is keyed by raw id (so opus-4-6 and
     # opus-4-7 aggregate separately); only the display string goes through
@@ -556,6 +566,7 @@ def _render_context_section(
     sym = SECTION_SYMBOLS["context"]
     header = LABELS["section.context"]
     lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
+    lines.append(_caption("section.context_caption", theme))
 
     # Context sizes
     context_sizes = sorted([s.input_tokens for s in sessions_with_tokens])
@@ -572,7 +583,10 @@ def _render_context_section(
     large_role = "error" if large_pct > 50 else ("warning" if large_pct > 25 else "success")
     threshold_label = _format_tokens(threshold)
     large_row = LABELS["context.large_sessions"].format(threshold=threshold_label, pct=large_pct)
-    lines.append(f"--{large_row} | font=Menlo size=12 color={theme.color(large_role)}")
+    lines.append(
+        f"--{large_row} | font=Menlo size=12 color={theme.color(large_role)}"
+        f" {_tooltip('context.large_sessions')}"
+    )
     pct_row = LABELS["context.percentiles"].format(p50=_format_tokens(p50), p90=_format_tokens(p90))
     lines.append(
         f"--{pct_row} | font=Menlo size=11 color={theme.color('text')}"

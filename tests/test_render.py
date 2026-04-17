@@ -10,6 +10,7 @@ from cc_menubar.config import Config
 from cc_menubar.labels import LABELS
 from cc_menubar.render import (
     Theme,
+    _caption,
     _format_model_name,
     _format_project_display,
     _format_reset_absolute,
@@ -313,3 +314,32 @@ class TestFormatProjectDisplay:
         home = str(Path.home())
         cwd = f"{home}/.config"
         assert _format_project_display(cwd) == ".config"
+
+
+class TestCaption:
+    """_caption() renders a disabled submenu child for section-level copy."""
+
+    def _theme(self) -> Theme:
+        return Theme("ayu", {}, {})
+
+    def test_caption_is_submenu_child(self):
+        row = _caption("section.activity_caption", self._theme())
+        assert row.startswith("--"), f"Caption must be a submenu child: {row!r}"
+
+    def test_caption_has_label_text(self):
+        row = _caption("section.model_mix_caption", self._theme())
+        assert LABELS["section.model_mix_caption"] in row
+
+    def test_caption_is_disabled(self):
+        row = _caption("section.context_caption", self._theme())
+        assert "disabled=true" in row
+
+    def test_caption_uses_subtext_color(self):
+        theme = self._theme()
+        row = _caption("section.activity_caption", theme)
+        assert f"color={theme.color('subtext')}" in row
+
+    def test_caption_styling(self):
+        row = _caption("section.activity_caption", self._theme())
+        assert "size=10" in row
+        assert "font=Menlo" in row
