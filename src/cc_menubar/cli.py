@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.resources
+import shutil
 import signal
 import stat
 import sys
@@ -114,6 +115,31 @@ cc-menubar render 2>/dev/null || echo "-- | sfimage=gauge.with.needle.fill"
 """
 
 PLUGIN_FILENAME = "cc-menubar.5m.sh"
+CCUSAGE_HELPER_FILENAME = ".cc-menubar-ccusage.sh"
+GHOSTTY_APP_PATH = Path("/Applications/Ghostty.app")
+
+
+def _install_ccusage_helper(plugin_dir: Path) -> Path | None:
+    """Write the ccusage helper script into plugin_dir if prerequisites exist.
+
+    Returns the installed helper path, or None if skipped (missing ccusage or
+    Ghostty.app). The leading `.` in the filename hides the script from
+    SwiftBar's plugin scan (it's invoked by bash=, not as a plugin).
+    """
+    ccusage_path = shutil.which("ccusage")
+    if not ccusage_path or not GHOSTTY_APP_PATH.is_dir():
+        return None
+
+    template = (
+        importlib.resources.files("cc_menubar")
+        .joinpath("ccusage_helper.sh")
+        .read_text(encoding="utf-8")
+    )
+    script = template.replace("@@CCUSAGE_PATH@@", ccusage_path)
+    helper_path = plugin_dir / CCUSAGE_HELPER_FILENAME
+    helper_path.write_text(script)
+    helper_path.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+    return helper_path
 
 
 @app.command()
@@ -142,6 +168,17 @@ def install() -> None:
     plugin_path.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
     typer.echo(f"Plugin installed: {plugin_path}")
+
+    helper_path = _install_ccusage_helper(plugin_dir)
+    if helper_path:
+        typer.echo(f"ccusage helper installed: {helper_path}")
+    else:
+        reason = (
+            "ccusage not on PATH"
+            if not shutil.which("ccusage")
+            else "Ghostty.app not found in /Applications"
+        )
+        typer.echo(f"ccusage helper skipped ({reason}). Footer actions will be hidden.")
 
     # Auto-init config if missing
     if not DEFAULT_CONFIG_PATH.is_file():
@@ -175,6 +212,8 @@ def uninstall() -> None:
     paths = [
         _get_swiftbar_plugin_dir() / PLUGIN_FILENAME,
         _get_xbar_plugin_dir() / PLUGIN_FILENAME,
+        _get_swiftbar_plugin_dir() / CCUSAGE_HELPER_FILENAME,
+        _get_xbar_plugin_dir() / CCUSAGE_HELPER_FILENAME,
     ]
 
     removed = False

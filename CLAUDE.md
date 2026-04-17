@@ -65,6 +65,7 @@ cc-menubar/
 - **WCAG AA dual-color presets** (`constants.py`): light-mode colors darkened for 4.5:1 against #FFFFFF, dark-mode for #2B2B2B
 - **Repository governance** ([calvindotsg/.github](https://github.com/calvindotsg/.github)): shared community health files (SECURITY.md, PR/issue templates) inherited by all repos + `scripts/setup-repo.sh` for squash-only merges, branch protection, security scanning — settings not discoverable by exploring the codebase
 - **Canonical schema alignment at value level** (`collectors/quota.py`): when caching upstream API data, pin **value semantics** (scale, units) to the canonical schema source — not just field names. cc-menubar documents `utilization` as percent 0–100 (matching [Claude Code statusline rate_limits.*.used_percentage](https://code.claude.com/docs/en/statusline#full-json-schema)) even though the cache field name comes from the OAuth endpoint (`utilization`). Field renames across producer + consumer are deferred as cosmetic; value-semantics alignment is the load-bearing decision.
+- **Canonical vs display split** (`labels.py`): internal code uses Claude Code statusline schema field names (snake_case — `five_hour`, `seven_day`, `used_percentage`); all user-facing copy lives in `src/cc_menubar/labels.py` (`LABELS` / `TOOLTIPS` dicts). Never inline display strings in `render.py` — import from labels. The `_tooltip(key)` helper in `render.py` wraps tooltip values in double quotes so apostrophes in content don't terminate SwiftBar's quoted-value parser.
 
 ## Constraints
 
