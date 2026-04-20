@@ -87,8 +87,7 @@ class Config:
 
     # [quota]
     quota_enabled: bool = True
-    extra_usage_budget: float = 0.0
-    extra_usage_reset_date: str = ""
+    statusline_cache_file: str = ""
 
     # [blocks]
     blocks_enabled: bool = True
@@ -162,8 +161,7 @@ class Config:
             metric=title.get("metric", "5h"),
             cycle=title.get("cycle", []),
             quota_enabled=quota.get("enabled", True),
-            extra_usage_budget=quota.get("extra_usage_budget", 0.0),
-            extra_usage_reset_date=quota.get("extra_usage_reset_date", ""),
+            statusline_cache_file=quota.get("cache_file", ""),
             blocks_enabled=blocks.get("enabled", True),
             session_length=blocks.get("session_length", 5),
             ccusage_timeout=blocks.get("ccusage_timeout", 15),
@@ -189,3 +187,9 @@ class Config:
         if env_dir:
             return Path(env_dir)
         return Path.home() / ".claude"
+
+    def get_statusline_cache_file(self) -> Path:
+        """Resolve the canonical statusline JSON cache file path."""
+        if self.statusline_cache_file:
+            return Path(self.statusline_cache_file).expanduser()
+        return Path("~/Library/Caches/cc-menubar/statusline-input.json").expanduser()

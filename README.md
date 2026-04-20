@@ -40,12 +40,12 @@ A gauge icon showing remaining quota. The needle position reflects how much quot
 
 | Section | Content | Visibility |
 |---------|---------|------------|
-| Quota & Runway | 5h / 7d / 7d Sonnet remaining, pace vs reset, burn rate | Always |
+| Time Left & Limits | 5h / 7d remaining, pace vs reset, burn rate | Always |
 | Activity (7d) | Category bars with one-shot rate | Always |
 | Projects | Per-project calls + subagent % | Always |
 | Tools & Commands | Top tools, top bash commands | Always |
-| Opusplan Health | Opus vs Haiku substitution % | When Opus model detected |
-| Context Efficiency | >150K session %, P50/P90, cache hit % | When sufficient data exists |
+| Model Mix | Opus vs Haiku substitution % | When Opus model detected |
+| Context Size | >150K session %, P50/P90, cache hit % | When sufficient data exists |
 
 ## Configuration
 
@@ -102,6 +102,49 @@ enabled = true
 # "-Users-me-myproject" = "My Project"
 ```
 
+## Quota setup
+
+cc-menubar reads canonical-shape [Claude Code statusline](https://code.claude.com/docs/en/statusline#full-json-schema) JSON from `~/Library/Caches/cc-menubar/statusline-input.json` (override via `[quota] cache_file`). It ships no producer — you wire an existing statusline to write the cache file via POSIX `tee`. Pick the scenario that matches your setup and paste into `~/.claude/settings.json`.
+
+### Scenario A — no existing statusline (fresh install)
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "tee ~/Library/Caches/cc-menubar/statusline-input.json | jq -r '\"[\\(.model.display_name)] \\(.context_window.used_percentage // 0)% context\"'"
+  }
+}
+```
+
+Writes the cache file *and* renders a minimal Claude Code footer.
+
+### Scenario B — existing custom script
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "tee ~/Library/Caches/cc-menubar/statusline-input.json | ~/.claude/statusline.sh"
+  }
+}
+```
+
+Your script reads stdin as before; `tee` writes the cache as a side effect.
+
+### Scenario C — existing published tool (`ccstatusline`, `CCometixLine`, `ccusage statusline`)
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "tee ~/Library/Caches/cc-menubar/statusline-input.json | ccusage statusline"
+  }
+}
+```
+
+**Portability:** `tee` is POSIX (present in every shell); `jq` is needed only for Scenario A; `cc-menubar install` creates the cache directory so `tee` never fails on a missing parent.
+
 ## CLI Commands
 
 | Command | Purpose |
@@ -114,7 +157,7 @@ enabled = true
 
 ## Data Sources
 
-- **Quota**: Reads `/tmp/claude-statusline-usage.json` (written by Claude Code statusline)
+- **Quota**: Reads canonical Claude Code statusline JSON cache (see [Quota setup](#quota-setup))
 - **Burn rate**: `ccusage blocks --json --active` (optional, install via `brew install ccusage`)
 - **Activity, tools, models, context**: JSONL files in `~/.claude/projects/`
 

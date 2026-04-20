@@ -25,7 +25,7 @@ cc-menubar/
 │   ├── classifier.py        # Activity classifier (CodeBurn port)
 │   ├── bash_utils.py        # Shell command extraction (CodeBurn port)
 │   └── collectors/
-│       ├── quota.py         # Read /tmp/claude-statusline-usage.json
+│       ├── quota.py         # Read canonical statusline JSON cache
 │       ├── blocks.py        # ccusage blocks --json subprocess
 │       ├── jsonl.py         # Single-pass JSONL parser
 │       └── cache.py         # Aggregate cache (300s TTL)
@@ -47,7 +47,7 @@ cc-menubar/
 - `font=Menlo size=11` for monospace data rows
 
 ### Caching
-- Quota: reads `/tmp/claude-statusline-usage.json` (written by statusline.py). Three windows: five_hour, seven_day, seven_day_sonnet. extra_usage is config-fallback only (no public API — anthropics/claude-code#34348 closed).
+- Quota: reads canonical-shape Claude Code statusline JSON from `~/Library/Caches/cc-menubar/statusline-input.json` (see [schema](https://code.claude.com/docs/en/statusline#full-json-schema)); producer wiring in README §Quota setup.
 - Blocks: `ccusage blocks --json --active` subprocess with timeout
 - JSONL: single-pass parse of `~/.claude/projects/*/**.jsonl`, mtime-filtered
 - Aggregate cache: `/tmp/cc-menubar-cache.json`, configurable TTL
@@ -64,7 +64,7 @@ cc-menubar/
 - **Graceful collector pattern** (`collectors/*.py`): each returns `None` on failure, render skips that section
 - **WCAG AA dual-color presets** (`constants.py`): light-mode colors darkened for 4.5:1 against #FFFFFF, dark-mode for #2B2B2B
 - **Repository governance** ([calvindotsg/.github](https://github.com/calvindotsg/.github)): shared community health files (SECURITY.md, PR/issue templates) inherited by all repos + `scripts/setup-repo.sh` for squash-only merges, branch protection, security scanning — settings not discoverable by exploring the codebase
-- **Canonical schema alignment at value level** (`collectors/quota.py`): when caching upstream API data, pin **value semantics** (scale, units) to the canonical schema source — not just field names. cc-menubar documents `utilization` as percent 0–100 (matching [Claude Code statusline rate_limits.*.used_percentage](https://code.claude.com/docs/en/statusline#full-json-schema)) even though the cache field name comes from the OAuth endpoint (`utilization`). Field renames across producer + consumer are deferred as cosmetic; value-semantics alignment is the load-bearing decision.
+- **Canonical public schema as integration boundary** (`collectors/quota.py`, README §Quota setup): when consuming upstream data, prefer the producer's public/documented schema over its private/undocumented API, even when the public schema has fewer fields (cc-menubar dropped `seven_day_sonnet` and `extra_usage` rather than call the private OAuth endpoint that exposes them). File-based decoupling via a POSIX `tee FILE | cmd` recipe in documentation lets users wire any producer without the tool auto-editing their config. Non-discoverable from code: the collector is a trivial ~40-line file read; the load-bearing decision is *not* re-implementing the deleted OAuth path, *not* auto-editing `~/.claude/settings.json`, and accepting a smaller feature surface in exchange for stability against upstream private-API changes.
 - **Canonical vs display split** (`labels.py`): internal code uses Claude Code statusline schema field names (snake_case — `five_hour`, `seven_day`, `used_percentage`); all user-facing copy lives in `src/cc_menubar/labels.py` (`LABELS` / `TOOLTIPS` dicts). Never inline display strings in `render.py` — import from labels. The `_tooltip(key)` helper in `render.py` wraps tooltip values in double quotes so apostrophes in content don't terminate SwiftBar's quoted-value parser. **Section-level explanation** goes in `LABELS` as a `section.<name>_caption` key and renders via `_caption()` as a disabled greyed-out row at the top of the submenu — never as a tooltip on a parent menu item. AppKit shows tooltip and submenu simultaneously on items with `--` children, so a tooltip on the parent collides with the submenu the user just opened. `TOOLTIPS` is reserved for leaf-row hover copy.
 
 ## Constraints
@@ -72,9 +72,9 @@ cc-menubar/
 - **Minimal PATH**: Wrapper sets `/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH`
 - **sfimage always monochrome**: SwiftBar forces `isTemplate = true` on all sfimage icons
 - **ccusage optional**: blocks section gracefully skips if ccusage not installed
-- **Quota read-only**: Only reads statusline.py cache, never calls OAuth directly
+- **Quota read-only**: Reads canonical-schema JSON cache populated by the user's statusline; never produces a Claude Code statusline, never calls OAuth, never edits `~/.claude/settings.json`
 - **Typer sole dependency**: Rich is transitive via Typer
-- **Quota scale**: `utilization` is 0–100 percent, not 0.0–1.0 fraction. Matches Claude Code statusline `rate_limits.*.used_percentage` canonical schema. Render divides by 100 for `sfvalue` (0.0–1.0).
+- **Quota scale**: `used_percentage` is 0–100 percent, not 0.0–1.0 fraction. Matches Claude Code statusline `rate_limits.*.used_percentage` canonical schema. Render divides by 100 for `sfvalue` (0.0–1.0).
 
 ## Release Process
 

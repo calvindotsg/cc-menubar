@@ -1,98 +1,74 @@
-"""Read quota data from statusline usage cache."""
+"""Read quota data from canonical Claude Code statusline JSON cache.
+
+cc-menubar consumes the public Claude Code statusline schema verbatim:
+https://code.claude.com/docs/en/statusline#full-json-schema
+
+A producer (any tool wired into `~/.claude/settings.json` `statusLine`) writes
+the stdin JSON to the cache file. See README §Quota setup for wiring recipes.
+"""
 
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
-
-USAGE_CACHE_FILE = Path("/tmp/claude-statusline-usage.json")
 
 
 @dataclass
 class QuotaData:
-    """Quota utilization for a time window."""
+    """Quota utilization for one rate-limit window."""
 
-    utilization: float  # 0.0-100.0 percent used; matches statusline rate_limits.*.used_percentage
-    resets_at: str  # ISO 8601 timestamp
-
-
-@dataclass
-class ExtraUsageData:
-    """Extra usage billing data."""
-
-    spent: float
-    budget: float
-    resets_at: str
+    used_percentage: float  # 0.0-100.0 percent used (canonical rate_limits.*.used_percentage)
+    resets_at: int  # Unix epoch seconds (canonical rate_limits.*.resets_at)
 
 
 @dataclass
 class QuotaInfo:
-    """Combined quota info for both windows."""
+    """Combined quota info for both canonical windows."""
 
     five_hour: QuotaData | None
     seven_day: QuotaData | None
-    cache_age: float  # seconds since cache was written
-    extra_usage: ExtraUsageData | None = None
-    seven_day_sonnet: QuotaData | None = None
+    cache_age: float  # seconds since cache file was last written (file mtime)
 
 
-def read_quota() -> QuotaInfo | None:
-    """Read quota data from /tmp/claude-statusline-usage.json.
+def _parse_window(window: object) -> QuotaData | None:
+    if not isinstance(window, dict):
+        return None
+    used = window.get("used_percentage")
+    resets = window.get("resets_at")
+    if not isinstance(used, (int, float)) or isinstance(used, bool):
+        return None
+    if not isinstance(resets, int) or isinstance(resets, bool):
+        return None
+    return QuotaData(used_percentage=float(used), resets_at=resets)
 
-    This file is written by statusline.py during active Claude Code sessions.
-    Returns None if the file doesn't exist or can't be parsed.
+
+def read_quota(cache_file: Path) -> QuotaInfo | None:
+    """Read canonical-schema quota data from the given cache file.
+
+    Returns None if the file is missing, unreadable, or malformed. Returns a
+    QuotaInfo with `five_hour` / `seven_day` independently set to None when
+    the whole `rate_limits` key or an individual window is absent, per the
+    canonical schema's documented absence rules.
     """
     try:
-        if not USAGE_CACHE_FILE.is_file():
+        if not cache_file.is_file():
             return None
-
-        data = json.loads(USAGE_CACHE_FILE.read_text())
-
-        import time
-
-        cache_age = time.time() - data.get("timestamp", 0)
-
-        five_hour = None
-        if data.get("five_hour"):
-            fh = data["five_hour"]
-            five_hour = QuotaData(
-                utilization=fh.get("utilization", 0.0),
-                resets_at=fh.get("resets_at", ""),
-            )
-
-        seven_day = None
-        if data.get("seven_day"):
-            sd = data["seven_day"]
-            seven_day = QuotaData(
-                utilization=sd.get("utilization", 0.0),
-                resets_at=sd.get("resets_at", ""),
-            )
-
-        extra_usage = None
-        if data.get("extra_usage"):
-            eu = data["extra_usage"]
-            extra_usage = ExtraUsageData(
-                spent=eu.get("spent", 0.0),
-                budget=eu.get("budget", 0.0),
-                resets_at=eu.get("resets_at", ""),
-            )
-
-        seven_day_sonnet = None
-        if data.get("seven_day_sonnet"):
-            sds = data["seven_day_sonnet"]
-            seven_day_sonnet = QuotaData(
-                utilization=sds.get("utilization", 0.0),
-                resets_at=sds.get("resets_at", ""),
-            )
-
-        return QuotaInfo(
-            five_hour=five_hour,
-            seven_day=seven_day,
-            cache_age=cache_age,
-            extra_usage=extra_usage,
-            seven_day_sonnet=seven_day_sonnet,
-        )
-
+        data = json.loads(cache_file.read_text())
     except (json.JSONDecodeError, OSError):
         return None
+
+    if not isinstance(data, dict):
+        return None
+
+    cache_age = max(0.0, time.time() - cache_file.stat().st_mtime)
+    rate_limits = data.get("rate_limits") or {}
+    if not isinstance(rate_limits, dict):
+        rate_limits = {}
+
+    return QuotaInfo(
+        five_hour=_parse_window(rate_limits.get("five_hour")),
+        seven_day=_parse_window(rate_limits.get("seven_day")),
+        cache_age=cache_age,
+    )

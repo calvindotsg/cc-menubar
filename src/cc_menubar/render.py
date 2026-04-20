@@ -97,13 +97,13 @@ def _mini_bar(value: float, max_val: float, width: int = 10) -> str:
     return "\u2588" * min(filled, width) + "\u00b7" * max(width - filled, 0)
 
 
-def _format_time_until(iso_str: str) -> str:
-    """Format time until an ISO timestamp as human-readable string.
+def _format_time_until(epoch: int) -> str:
+    """Format time until a Unix-epoch timestamp as human-readable string.
 
     Returns "{d}d {h}h {m}m" when days > 0, else "{h}h {m}m" / "{m}m".
     """
     try:
-        target = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        target = datetime.fromtimestamp(epoch, tz=UTC)
         now = datetime.now(UTC)
         delta = target - now
         total_seconds = int(delta.total_seconds())
@@ -117,20 +117,20 @@ def _format_time_until(iso_str: str) -> str:
         if hours > 0:
             return f"{hours}h {minutes}m"
         return f"{minutes}m"
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return "?"
 
 
-def _format_reset_absolute(iso_str: str) -> str:
-    """Format an ISO-8601 reset timestamp as a short local-tz wall-clock string.
+def _format_reset_absolute(epoch: int) -> str:
+    """Format a Unix-epoch reset timestamp as a short local-tz wall-clock string.
 
     Same local date as now: "9am" / "12:30pm" (lowercase am/pm, no leading
     zero, omit minutes when :00). Different date: "Apr 24 at 7am".
     """
     try:
-        target = datetime.fromisoformat(iso_str.replace("Z", "+00:00")).astimezone()
+        target = datetime.fromtimestamp(epoch, tz=UTC).astimezone()
         now = datetime.now().astimezone()
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return "?"
 
     hour = target.hour % 12 or 12
@@ -217,13 +217,13 @@ def render(
 
 
 def _get_remaining(quota: QuotaInfo | None, metric: str) -> float | None:
-    """Get remaining fraction (1.0 - utilization) for a metric."""
+    """Get remaining fraction (1.0 - used_percentage/100) for a metric."""
     if not quota:
         return None
     if metric == "5h" and quota.five_hour:
-        return max(0.0, 1.0 - quota.five_hour.utilization / 100.0)
+        return max(0.0, 1.0 - quota.five_hour.used_percentage / 100.0)
     if metric == "7d" and quota.seven_day:
-        return max(0.0, 1.0 - quota.seven_day.utilization / 100.0)
+        return max(0.0, 1.0 - quota.seven_day.used_percentage / 100.0)
     return None
 
 
@@ -312,33 +312,16 @@ def _render_quota_section(
     for key, data in [
         ("rate_limits.five_hour", quota.five_hour),
         ("rate_limits.seven_day", quota.seven_day),
-        ("rate_limits.seven_day_sonnet", quota.seven_day_sonnet),
     ]:
         if not data:
             continue
-        remaining = max(0.0, 1.0 - data.utilization / 100.0)
+        remaining = max(0.0, 1.0 - data.used_percentage / 100.0)
         pct = int(remaining * 100)
         role = theme.threshold_role(remaining)
-        abs_reset = _format_reset_absolute(data.resets_at) if data.resets_at else "?"
-        rel_reset = _format_time_until(data.resets_at) if data.resets_at else "?"
+        abs_reset = _format_reset_absolute(data.resets_at)
+        rel_reset = _format_time_until(data.resets_at)
         row = f"{LABELS[key]}: " + row_suffix.format(pct=pct, abs=abs_reset, rel=rel_reset)
         lines.append(f"--{row} | color={theme.color(role)} font=Menlo size=12 {_tooltip(key)}")
-
-    # Extra usage: prefer JSON data, fall back to config. Labels stay verbatim
-    # ("Extra usage" is a common Claude term, not jargon to re-render).
-    if quota and quota.extra_usage:
-        eu = quota.extra_usage
-        eu_text = f"Extra usage: ${eu.spent:.2f} / ${eu.budget:.2f}"
-        if eu.resets_at:
-            abs_reset = _format_reset_absolute(eu.resets_at)
-            rel_reset = _format_time_until(eu.resets_at)
-            eu_text += f" \u00b7 resets {abs_reset} \u00b7 in {rel_reset}"
-        lines.append(f"--{eu_text} | color={theme.color('subtext')} font=Menlo size=11")
-    elif config.extra_usage_budget > 0:
-        lines.append(
-            f"--Extra usage budget: ${config.extra_usage_budget:.2f}"
-            f" | color={theme.color('subtext')} font=Menlo size=11"
-        )
 
     # Active 5h ccusage block: cost so far, hourly burn rate, time until close.
     if blocks and blocks.active_block:

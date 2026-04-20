@@ -80,3 +80,27 @@ def test_get_claude_data_dir_env(tmp_path, monkeypatch):
     config = Config.load(path=tmp_path / "nonexistent.toml")
     config.claude_data_dir = ""  # Ensure fallback to env
     assert str(config.get_claude_data_dir()) == "/custom/claude"
+
+
+def test_statusline_cache_file_default(tmp_path):
+    """statusline_cache_file defaults to empty string (sentinel for built-in path)."""
+    config = Config.load(path=tmp_path / "nonexistent.toml")
+    assert config.statusline_cache_file == ""
+
+
+def test_get_statusline_cache_file_default(tmp_path):
+    """Unset cache_file → ~/Library/Caches/cc-menubar/statusline-input.json."""
+    config = Config.load(path=tmp_path / "nonexistent.toml")
+    path = config.get_statusline_cache_file()
+    assert path.name == "statusline-input.json"
+    assert "Library/Caches/cc-menubar" in str(path)
+
+
+def test_get_statusline_cache_file_override(tmp_path):
+    """User config cache_file is honored, with ~ expansion."""
+    user_config = tmp_path / "config.toml"
+    user_config.write_text('[quota]\ncache_file = "~/custom/statusline.json"\n')
+    config = Config.load(path=user_config)
+    path = config.get_statusline_cache_file()
+    assert path.name == "statusline.json"
+    assert "~" not in str(path)

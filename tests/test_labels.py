@@ -11,8 +11,8 @@ from cc_menubar.labels import LABELS, TOOLTIPS
 from cc_menubar.render import render
 
 
-def _iso_from_now(days: int = 0, hours: int = 0) -> str:
-    return (datetime.now(UTC) + timedelta(days=days, hours=hours)).isoformat()
+def _epoch_from_now(days: int = 0, hours: int = 0) -> int:
+    return int((datetime.now(UTC) + timedelta(days=days, hours=hours)).timestamp())
 
 
 def _make_full_config() -> Config:
@@ -29,7 +29,6 @@ def _make_full_config() -> Config:
         activity_enabled=True,
         tools_enabled=True,
         projects_enabled=True,
-        extra_usage_budget=0.0,
         theme_preset="ayu",
         theme_light={},
         theme_dark={},
@@ -86,9 +85,8 @@ def _make_full_data() -> AggregateData:
 def _render_full() -> str:
     config = _make_full_config()
     quota = QuotaInfo(
-        five_hour=QuotaData(utilization=27.0, resets_at=_iso_from_now(hours=3)),
-        seven_day=QuotaData(utilization=9.0, resets_at=_iso_from_now(days=6, hours=18)),
-        seven_day_sonnet=QuotaData(utilization=5.0, resets_at=_iso_from_now(days=6)),
+        five_hour=QuotaData(used_percentage=27.0, resets_at=_epoch_from_now(hours=3)),
+        seven_day=QuotaData(used_percentage=9.0, resets_at=_epoch_from_now(days=6, hours=18)),
         cache_age=10.0,
     )
     return render(config, quota, None, _make_full_data())
