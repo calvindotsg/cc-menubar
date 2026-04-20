@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/calvindotsg/cc-menubar/compare/v0.3.1...v1.0.0) (2026-04-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **quota:** decouple from statusline.py, consume canonical schema ([#13](https://github.com/calvindotsg/cc-menubar/issues/13))
+
+### Features
+
+* **quota:** decouple from statusline.py, consume canonical schema ([#13](https://github.com/calvindotsg/cc-menubar/issues/13)) ([ec6ecba](https://github.com/calvindotsg/cc-menubar/commit/ec6ecba2e100b50916df1a426dd18b79c09fae8e))
+
 ## [0.3.1](https://github.com/calvindotsg/cc-menubar/compare/v0.3.0...v0.3.1) (2026-04-17)
 
 
