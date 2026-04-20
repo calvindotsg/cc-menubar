@@ -13,8 +13,7 @@ cycle = []                          # Extra metrics to rotate: ["5h", "7d", "opu
 
 [quota]
 enabled = true
-extra_usage_budget = 0.0
-extra_usage_reset_date = ""
+cache_file = ""    # default: ~/Library/Caches/cc-menubar/statusline-input.json
 
 [blocks]
 enabled = true

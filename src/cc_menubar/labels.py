@@ -44,7 +44,6 @@ LABELS: dict[str, str] = {
     # Quota rows
     "rate_limits.five_hour": "5-Hour",
     "rate_limits.seven_day": "7-Day",
-    "rate_limits.seven_day_sonnet": "7-Day (Sonnet only)",
     "rate_limits.row_suffix": "{pct}% left  (resets {abs} \u00b7 in {rel})",
     "active_block.row": "Current 5h block: {parts}",
     # Activity
@@ -65,9 +64,6 @@ LABELS: dict[str, str] = {
 TOOLTIPS: dict[str, str] = {
     "rate_limits.five_hour": "Rolling 5-hour Claude Code usage window",
     "rate_limits.seven_day": "Rolling 7-day Claude Code usage window",
-    "rate_limits.seven_day_sonnet": (
-        "Separate 7-day window that tracks Sonnet \u2014 Claude's faster model \u2014 independently"
-    ),
     "active_block.row": (
         "Current 5-hour ccusage block. Spend so far, hourly rate, time until the block closes."
     ),

@@ -74,7 +74,7 @@ def render(
         from cc_menubar.collectors.quota import read_quota
         from cc_menubar.render import render as do_render
 
-        quota = read_quota()
+        quota = read_quota(config.get_statusline_cache_file())
         blocks = (
             read_blocks(
                 timeout=config.ccusage_timeout,
@@ -167,6 +167,10 @@ def install() -> None:
     plugin_path.write_text(WRAPPER_SCRIPT)
     plugin_path.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
+    # Ensure the statusline cache directory exists so `tee` producer recipes
+    # in the README never fail on a missing parent dir.
+    Path("~/Library/Caches/cc-menubar").expanduser().mkdir(parents=True, exist_ok=True)
+
     typer.echo(f"Plugin installed: {plugin_path}")
 
     helper_path = _install_ccusage_helper(plugin_dir)
@@ -204,6 +208,12 @@ def install() -> None:
         typer.echo("  brew install --cask swiftbar")
         typer.echo()
         typer.echo("Then launch SwiftBar — the plugin will load automatically.")
+
+    typer.echo()
+    typer.echo(
+        "To populate the quota dropdown, wire a Claude Code statusline producer"
+        " per README §Quota setup."
+    )
 
 
 @app.command()
@@ -309,8 +319,7 @@ def config(
         typer.echo()
         typer.echo("[quota]")
         typer.echo(f"enabled = {str(cfg.quota_enabled).lower()}")
-        typer.echo(f"extra_usage_budget = {cfg.extra_usage_budget}")
-        typer.echo(f'extra_usage_reset_date = "{cfg.extra_usage_reset_date}"')
+        typer.echo(f'cache_file = "{cfg.statusline_cache_file}"')
         typer.echo()
         typer.echo("[blocks]")
         typer.echo(f"enabled = {str(cfg.blocks_enabled).lower()}")
