@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/calvindotsg/cc-menubar/compare/v1.0.0...v2.0.0) (2026-04-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* v2.0.0 — dynamic icon, "Plan usage limits" header, macOS 14 floor ([#15](https://github.com/calvindotsg/cc-menubar/issues/15))
+
+### Features
+
+* v2.0.0 — dynamic icon, "Plan usage limits" header, macOS 14 floor ([#15](https://github.com/calvindotsg/cc-menubar/issues/15)) ([ea5a940](https://github.com/calvindotsg/cc-menubar/commit/ea5a9404c985ca81c93517c18b8080278f3257f0))
+
 ## [1.0.0](https://github.com/calvindotsg/cc-menubar/compare/v0.3.1...v1.0.0) (2026-04-20)
 
 
