@@ -5,7 +5,6 @@ cache_ttl = 300
 claude_data_dir = ""    # Auto-detect: ~/.claude or $CLAUDE_CONFIG_DIR
 
 [title]
-symbol = "gauge.with.needle.fill"  # SF Symbol name (variable-value capable)
 text = "none"                       # "none" | "percent" | "label"
 color = "monochrome"                # "monochrome" | "threshold" | "always"
 metric = "5h"                       # Primary quota window: "5h" | "7d"

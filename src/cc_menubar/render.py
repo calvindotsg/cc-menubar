@@ -15,7 +15,7 @@ from cc_menubar.collectors.blocks import BlockInfo
 from cc_menubar.collectors.jsonl import AggregateData
 from cc_menubar.collectors.quota import QuotaInfo
 from cc_menubar.config import Config
-from cc_menubar.constants import EDIT_TOOLS, SECTION_SYMBOLS, THEME_PRESETS
+from cc_menubar.constants import EDIT_TOOLS, SECTION_SYMBOLS, THEME_PRESETS, TITLE_SYMBOLS
 from cc_menubar.labels import LABELS, TOOLTIPS
 
 _EDIT_CATEGORIES = frozenset({"coding", "debugging", "feature", "refactoring"})
@@ -81,10 +81,14 @@ class Theme:
         return f"{pair[0]},{pair[1]}"
 
     def threshold_role(self, remaining: float) -> str:
-        """Return theme role based on remaining quota fraction."""
-        if remaining > 0.5:
+        """Return theme role based on remaining quota fraction.
+
+        66% / 33% thirds, single-sourced with `_title_symbol` so icon glyph
+        and text color flip at the same moments.
+        """
+        if remaining > 0.66:
             return "success"
-        if remaining > 0.2:
+        if remaining > 0.33:
             return "warning"
         return "error"
 
@@ -227,6 +231,22 @@ def _get_remaining(quota: QuotaInfo | None, metric: str) -> float | None:
     return None
 
 
+def _title_symbol(remaining: float | None) -> str:
+    """Pick a gauge glyph reflecting remaining-quota fraction.
+
+    Thresholds match ``Theme.threshold_role`` so icon state and (optional)
+    text-color state flip at the same moments. Unknown remaining falls back
+    to the medium glyph — a neutral visual in the absence of quota data.
+    """
+    if remaining is None:
+        return TITLE_SYMBOLS["medium"]
+    if remaining > 0.66:
+        return TITLE_SYMBOLS["high"]
+    if remaining > 0.33:
+        return TITLE_SYMBOLS["medium"]
+    return TITLE_SYMBOLS["low"]
+
+
 def _render_title(lines: list[str], config: Config, theme: Theme, remaining: float | None) -> None:
     """Render the menu bar title line."""
     parts: list[str] = []
@@ -242,7 +262,7 @@ def _render_title(lines: list[str], config: Config, theme: Theme, remaining: flo
     text = " ".join(parts)
 
     # SwiftBar parameters
-    params = [f"sfimage={config.symbol}"]
+    params = [f"sfimage={_title_symbol(remaining)}"]
     if remaining is not None:
         params.append(f"sfvalue={remaining:.2f}")
 
@@ -265,13 +285,14 @@ def _render_cycle_line(
     jsonl_data: AggregateData | None,
 ) -> None:
     """Render a cycling title line (dropdown=false)."""
-    symbol_map = {
-        "5h": "gauge.with.needle.fill",
-        "7d": "gauge.with.needle.fill",
+    non_quota_symbols = {
         "opusplan": "cpu",
         "context": "brain.head.profile",
     }
-    symbol = symbol_map.get(metric, config.symbol)
+    if metric in ("5h", "7d"):
+        symbol = _title_symbol(remaining)
+    else:
+        symbol = non_quota_symbols.get(metric, _title_symbol(None))
 
     if metric in ("5h", "7d"):
         pct = f"{int(remaining * 100)}%" if remaining is not None else "?"
@@ -299,13 +320,16 @@ def _render_quota_section(
     blocks: BlockInfo | None,
     config: Config,
 ) -> None:
-    """Render Time Left & Limits dropdown section."""
+    """Render the Plan usage limits dropdown section."""
     sym = SECTION_SYMBOLS["quota"]
     header = LABELS["section.rate_limits"]
     lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
+    lines.append(_caption("section.rate_limits_caption", theme))
 
     if not quota:
-        lines.append(f"--No quota data | color={theme.color('subtext')}")
+        lines.append(
+            f"--{LABELS['rate_limits.no_data']} | color={theme.color('subtext')} font=Menlo size=11"
+        )
         return
 
     row_suffix = LABELS["rate_limits.row_suffix"]
@@ -315,27 +339,28 @@ def _render_quota_section(
     ]:
         if not data:
             continue
-        remaining = max(0.0, 1.0 - data.used_percentage / 100.0)
-        pct = int(remaining * 100)
+        pct_used = int(data.used_percentage)
+        pct_left = max(0, 100 - pct_used)
+        remaining = pct_left / 100.0
         role = theme.threshold_role(remaining)
         abs_reset = _format_reset_absolute(data.resets_at)
         rel_reset = _format_time_until(data.resets_at)
-        row = f"{LABELS[key]}: " + row_suffix.format(pct=pct, abs=abs_reset, rel=rel_reset)
+        row = f"{LABELS[key]}: " + row_suffix.format(
+            used=pct_used, left=pct_left, abs=abs_reset, rel=rel_reset
+        )
         lines.append(f"--{row} | color={theme.color(role)} font=Menlo size=12 {_tooltip(key)}")
 
-    # Active 5h ccusage block: cost so far, hourly burn rate, time until close.
+    # Active 5h ccusage block: cost so far and hourly burn rate. The time-left
+    # figure is omitted — it duplicates the 5-Hour reset countdown above.
     if blocks and blocks.active_block:
         active = blocks.active_block
         cost_so_far = active.get("costUSD", 0.0)
         cost_per_hr = active.get("burnRate", {}).get("costPerHour")
-        remaining_min = active.get("projection", {}).get("remainingMinutes")
         parts: list[str] = []
         if cost_so_far:
             parts.append(f"${cost_so_far:.2f} so far")
         if cost_per_hr is not None:
             parts.append(f"${cost_per_hr:.1f}/hr")
-        if remaining_min is not None:
-            parts.append(f"~{int(remaining_min)}m left")
         if parts:
             row = LABELS["active_block.row"].format(parts=" \u00b7 ".join(parts))
             lines.append(
@@ -417,6 +442,7 @@ def _render_projects_section(
     sym = SECTION_SYMBOLS["projects"]
     header = LABELS["section.projects"]
     lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
+    lines.append(_caption("section.projects_caption", theme))
 
     if not data.project_counts:
         lines.append(f"--No project data | color={theme.color('subtext')}")
@@ -456,12 +482,15 @@ def _render_tools_section(
     sym = SECTION_SYMBOLS["tools"]
     header = LABELS["section.tools"]
     lines.append(f"{header} | sfimage={sym} color={theme.color('header')} fold=true")
+    lines.append(_caption("section.tools_caption", theme))
+
+    divider_style = f"size=10 color={theme.color('subtext')} font=Menlo disabled=true"
 
     # Top tools
     sorted_tools = sorted(data.tool_counts.items(), key=lambda x: -x[1])[: config.tools_top_n]
     if sorted_tools:
         max_tool = sorted_tools[0][1]
-        lines.append(f"--Top Tools | color={theme.color('accent')} size=12")
+        lines.append(f"--Top Tools | {divider_style}")
         for name, count in sorted_tools:
             bar = _mini_bar(count, max_tool)
             lines.append(
@@ -475,7 +504,7 @@ def _render_tools_section(
     if sorted_cmds:
         max_cmd = sorted_cmds[0][1]
         lines.append("-----")
-        lines.append(f"--Top Commands | color={theme.color('accent')} size=12")
+        lines.append(f"--Top Commands | {divider_style}")
         for name, count in sorted_cmds:
             bar = _mini_bar(count, max_cmd)
             lines.append(
@@ -597,16 +626,16 @@ def _render_footer(lines: list[str], theme: Theme) -> None:
     window is still open.
     """
     lines.append("---")
-    lines.append("Refresh | refresh=true")
+    lines.append("Refresh | refresh=true sfimage=arrow.clockwise")
 
     if CCUSAGE_HELPER_PATH.exists():
         helper_q = str(CCUSAGE_HELPER_PATH).replace(" ", "\\ ")
         lines.append(
-            f"{LABELS['footer.ccusage_daily']} | bash={helper_q} param1=daily"
+            f"{LABELS['footer.ccusage_daily']} | sfimage=calendar bash={helper_q} param1=daily"
             f" terminal=false refresh=false {_tooltip('footer.ccusage_daily')}"
         )
         lines.append(
-            f"{LABELS['footer.ccusage_blocks']} | bash={helper_q} param1=blocks"
+            f"{LABELS['footer.ccusage_blocks']} | sfimage=clock bash={helper_q} param1=blocks"
             f" param2=--active terminal=false refresh=false"
             f" {_tooltip('footer.ccusage_blocks')}"
         )

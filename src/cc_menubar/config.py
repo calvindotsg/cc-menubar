@@ -79,7 +79,6 @@ class Config:
     claude_data_dir: str = ""
 
     # [title]
-    symbol: str = "gauge.with.needle.fill"
     text: str = "none"
     color: str = "monochrome"
     metric: str = "5h"
@@ -155,7 +154,6 @@ class Config:
             locale=general.get("locale", ""),
             cache_ttl=general.get("cache_ttl", 300),
             claude_data_dir=general.get("claude_data_dir", ""),
-            symbol=title.get("symbol", "gauge.with.needle.fill"),
             text=title.get("text", "none"),
             color=title.get("color", "monochrome"),
             metric=title.get("metric", "5h"),

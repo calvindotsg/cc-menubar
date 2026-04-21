@@ -124,3 +124,11 @@ SECTION_SYMBOLS: dict[str, str] = {
     "opusplan": "cpu",
     "context": "brain.head.profile",
 }
+
+# SF Symbols 5 (macOS 14+) variable-fill gauges for title-icon threshold swap.
+# Thresholds match `Theme.threshold_role` so icon and text color flip together.
+TITLE_SYMBOLS: dict[str, str] = {
+    "high": "gauge.with.dots.needle.bottom.100percent",
+    "medium": "gauge.with.dots.needle.bottom.50percent",
+    "low": "gauge.with.dots.needle.bottom.0percent",
+}
