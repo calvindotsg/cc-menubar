@@ -116,18 +116,18 @@ cc-menubar render 2>/dev/null || echo "-- | sfimage=gauge.with.needle.fill"
 
 PLUGIN_FILENAME = "cc-menubar.5m.sh"
 CCUSAGE_HELPER_FILENAME = ".cc-menubar-ccusage.sh"
-GHOSTTY_APP_PATH = Path("/Applications/Ghostty.app")
 
 
 def _install_ccusage_helper(plugin_dir: Path) -> Path | None:
-    """Write the ccusage helper script into plugin_dir if prerequisites exist.
+    """Write the ccusage helper script into plugin_dir if ccusage is on PATH.
 
-    Returns the installed helper path, or None if skipped (missing ccusage or
-    Ghostty.app). The leading `.` in the filename hides the script from
-    SwiftBar's plugin scan (it's invoked by bash=, not as a plugin).
+    The helper prefers Ghostty.app when present and falls back to Terminal.app
+    otherwise — so Ghostty is not an install-time prerequisite. The leading
+    `.` in the filename hides the script from SwiftBar's plugin scan (it's
+    invoked by bash=, not as a plugin).
     """
     ccusage_path = shutil.which("ccusage")
-    if not ccusage_path or not GHOSTTY_APP_PATH.is_dir():
+    if not ccusage_path:
         return None
 
     template = (
@@ -177,12 +177,7 @@ def install() -> None:
     if helper_path:
         typer.echo(f"ccusage helper installed: {helper_path}")
     else:
-        reason = (
-            "ccusage not on PATH"
-            if not shutil.which("ccusage")
-            else "Ghostty.app not found in /Applications"
-        )
-        typer.echo(f"ccusage helper skipped ({reason}). Footer actions will be hidden.")
+        typer.echo("ccusage helper skipped (ccusage not on PATH). Footer actions will be hidden.")
 
     # Auto-init config if missing
     if not DEFAULT_CONFIG_PATH.is_file():
@@ -311,7 +306,6 @@ def config(
         typer.echo(f'claude_data_dir = "{cfg.claude_data_dir}"')
         typer.echo()
         typer.echo("[title]")
-        typer.echo(f'symbol = "{cfg.symbol}"')
         typer.echo(f'text = "{cfg.text}"')
         typer.echo(f'color = "{cfg.color}"')
         typer.echo(f'metric = "{cfg.metric}"')

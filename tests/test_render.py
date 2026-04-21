@@ -15,6 +15,7 @@ from cc_menubar.render import (
     _format_project_display,
     _format_reset_absolute,
     _format_time_until,
+    _title_symbol,
     render,
 )
 
@@ -28,7 +29,6 @@ def _epoch_from_now(days: int = 0, hours: int = 0, minutes: int = 0) -> int:
 def _make_config(**kwargs) -> Config:
     """Create a Config with defaults, overriding specified fields."""
     defaults = {
-        "symbol": "gauge.with.needle.fill",
         "text": "none",
         "color": "monochrome",
         "metric": "5h",
@@ -69,18 +69,25 @@ class TestTheme:
 
     def test_threshold_role(self):
         theme = Theme("ayu", {}, {})
-        assert theme.threshold_role(0.8) == "success"
-        assert theme.threshold_role(0.35) == "warning"
-        assert theme.threshold_role(0.1) == "error"
+        # 66% / 33% thirds, aligned with _title_symbol thresholds.
+        assert theme.threshold_role(0.70) == "success"
+        assert theme.threshold_role(0.50) == "warning"
+        assert theme.threshold_role(0.20) == "error"
+
+    def test_threshold_role_boundaries(self):
+        """Boundary values: 0.66 and 0.33 fall into the lower role."""
+        theme = Theme("ayu", {}, {})
+        assert theme.threshold_role(0.66) == "warning"
+        assert theme.threshold_role(0.33) == "error"
 
 
 class TestTitleLine:
     def test_icon_only_default(self):
-        """Default config: icon only, no text."""
+        """Default config: dynamic gauge icon, no text. 73% remaining → high glyph."""
         config = _make_config()
         output = render(config, _make_quota(), None, None)
         lines = output.split("\n")
-        assert "sfimage=gauge.with.needle.fill" in lines[0]
+        assert "sfimage=gauge.with.dots.needle.bottom.100percent" in lines[0]
         assert "sfvalue=0.73" in lines[0]
         assert lines[0].startswith("| ")
 
@@ -146,7 +153,7 @@ class TestDropdown:
 
 class TestQuotaPercentSemantics:
     def test_percent_scale_rendering(self):
-        """Guard against scale-bug regression: used_percentage 0-100 → correct remaining %."""
+        """Guard against scale-bug regression: used_percentage 0-100 → correct used/left %."""
         config = _make_config()
         quota = QuotaInfo(
             five_hour=QuotaData(used_percentage=7.0, resets_at=_epoch_from_now(hours=3)),
@@ -154,8 +161,10 @@ class TestQuotaPercentSemantics:
             cache_age=10.0,
         )
         output = render(config, quota, None, None)
-        assert "5-Hour: 93% left" in output
-        assert "7-Day: 70% left" in output
+        assert "5-Hour: 7% used" in output
+        assert "93% left" in output
+        assert "7-Day: 30% used" in output
+        assert "70% left" in output
 
     def test_days_in_runway(self):
         """Runways > 24h should use d/h/m formatting, not hours-only."""
@@ -169,7 +178,11 @@ class TestQuotaPercentSemantics:
         assert "6d" in output
 
     def test_burn_rate_from_ccusage(self):
-        """Active 5h block row reads ccusage costUSD/costPerHour/remainingMinutes."""
+        """Active 5h block row reads ccusage costUSD and burnRate.costPerHour.
+
+        The remainingMinutes figure is deliberately NOT rendered — it
+        duplicates the 5-Hour reset countdown on the row above.
+        """
         config = _make_config()
         quota = _make_quota()
         blocks = BlockInfo(
@@ -186,7 +199,7 @@ class TestQuotaPercentSemantics:
         assert "Current 5h block:" in output
         assert "$6.15 so far" in output
         assert "$11.4/hr" in output
-        assert "~266m left" in output
+        assert "m left" not in output
 
     def test_burn_rate_skipped_without_active_block(self):
         """No active block → no burn-rate row."""
@@ -301,3 +314,137 @@ class TestCaption:
         row = _caption("section.activity_caption", self._theme())
         assert "size=10" in row
         assert "font=Menlo" in row
+
+
+class TestTitleSymbol:
+    """_title_symbol() maps remaining fraction → SF Symbols 5 gauge glyph."""
+
+    def test_unknown_returns_medium(self):
+        assert _title_symbol(None) == "gauge.with.dots.needle.bottom.50percent"
+
+    def test_high_returns_100percent(self):
+        assert _title_symbol(0.80) == "gauge.with.dots.needle.bottom.100percent"
+
+    def test_medium_returns_50percent(self):
+        assert _title_symbol(0.50) == "gauge.with.dots.needle.bottom.50percent"
+
+    def test_low_returns_0percent(self):
+        assert _title_symbol(0.20) == "gauge.with.dots.needle.bottom.0percent"
+
+    def test_boundary_66_is_medium(self):
+        """0.66 is NOT > 0.66, so falls into medium."""
+        assert _title_symbol(0.66) == "gauge.with.dots.needle.bottom.50percent"
+
+    def test_boundary_33_is_low(self):
+        """0.33 is NOT > 0.33, so falls into low."""
+        assert _title_symbol(0.33) == "gauge.with.dots.needle.bottom.0percent"
+
+
+class TestQuotaDualFraming:
+    """`rate_limits.row_suffix` renders both used and left percentages."""
+
+    def test_five_hour_dual_framing(self):
+        config = _make_config()
+        quota = QuotaInfo(
+            five_hour=QuotaData(used_percentage=55.0, resets_at=_epoch_from_now(hours=4)),
+            seven_day=None,
+            cache_age=10.0,
+        )
+        output = render(config, quota, None, None)
+        matching = [ln for ln in output.splitlines() if ln.startswith("--5-Hour:")]
+        assert matching, f"No 5-Hour row in output: {output!r}"
+        row = matching[0]
+        assert "% used" in row
+        assert "% left" in row
+        assert "55% used" in row
+        assert "45% left" in row
+        assert "resets" in row
+
+    def test_quota_caption_row_present(self):
+        """Quota section emits a caption row immediately after its header."""
+        config = _make_config()
+        output = render(config, _make_quota(), None, None)
+        lines = output.splitlines()
+        header_label = LABELS["section.rate_limits"]
+        header_idx = next(
+            i for i, ln in enumerate(lines) if header_label in ln and "fold=true" in ln
+        )
+        next_line = lines[header_idx + 1]
+        assert LABELS["section.rate_limits_caption"] in next_line
+        assert "disabled=true" in next_line
+
+
+class TestQuotaNoDataFallback:
+    """When quota is None, an actionable no_data label renders in the submenu."""
+
+    def test_no_data_label_renders(self):
+        config = _make_config()
+        output = render(config, None, None, None)
+        assert LABELS["rate_limits.no_data"] in output
+
+    def test_no_legacy_no_quota_data(self):
+        config = _make_config()
+        output = render(config, None, None, None)
+        assert "No quota data" not in output
+
+
+class TestDemotedDividers:
+    """Top Tools / Top Commands dividers match the caption style."""
+
+    def _full_config(self) -> Config:
+        return _make_config(tools_enabled=True)
+
+    def _make_data(self):
+        from cc_menubar.collectors.jsonl import AggregateData, SessionData
+
+        agg = AggregateData(
+            sessions=[
+                SessionData(
+                    project="demo",
+                    session_id="s1",
+                    tools=["Edit", "Bash"],
+                    bash_commands=["ls"],
+                    models=["claude-opus-4-6"],
+                    input_tokens=1000,
+                    output_tokens=100,
+                    cache_read_tokens=0,
+                    cache_write_tokens=0,
+                    turns=2,
+                    is_subagent=False,
+                    cwd="/tmp",
+                )
+            ]
+        )
+        agg.tool_counts = {"Edit": 3, "Bash": 2}
+        agg.bash_command_counts = {"ls": 2}
+        return agg
+
+    def test_top_tools_is_disabled_caption(self):
+        output = render(self._full_config(), None, None, self._make_data())
+        matching = [ln for ln in output.splitlines() if "Top Tools" in ln]
+        assert matching, f"No Top Tools line in output: {output!r}"
+        line = matching[0]
+        assert "disabled=true" in line
+        assert "size=10" in line
+
+    def test_top_tools_not_accent_colored(self):
+        output = render(self._full_config(), None, None, self._make_data())
+        matching = [ln for ln in output.splitlines() if "Top Tools" in ln]
+        for line in matching:
+            assert "accent" not in line
+
+    def test_top_commands_is_disabled_caption(self):
+        output = render(self._full_config(), None, None, self._make_data())
+        matching = [ln for ln in output.splitlines() if "Top Commands" in ln]
+        assert matching
+        line = matching[0]
+        assert "disabled=true" in line
+
+
+class TestFooterIcons:
+    def test_refresh_has_sfimage(self):
+        config = _make_config()
+        output = render(config, None, None, None)
+        matching = [ln for ln in output.splitlines() if ln.startswith("Refresh")]
+        assert matching
+        assert "sfimage=arrow.clockwise" in matching[0]

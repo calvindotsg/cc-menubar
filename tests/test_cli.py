@@ -23,12 +23,9 @@ def test_install_helper_writes_script(fake_plugin_dir: Path, tmp_path: Path):
     fake_ccusage = tmp_path / "bin" / "ccusage"
     fake_ccusage.parent.mkdir()
     fake_ccusage.touch()
-    fake_ghostty = tmp_path / "Ghostty.app"
-    fake_ghostty.mkdir()
 
     with patch.object(cli.shutil, "which", return_value=str(fake_ccusage)):
-        with patch.object(cli, "GHOSTTY_APP_PATH", fake_ghostty):
-            helper = cli._install_ccusage_helper(fake_plugin_dir)
+        helper = cli._install_ccusage_helper(fake_plugin_dir)
 
     assert helper is not None
     assert helper.exists()
@@ -37,35 +34,33 @@ def test_install_helper_writes_script(fake_plugin_dir: Path, tmp_path: Path):
     text = helper.read_text()
     assert "@@CCUSAGE_PATH@@" not in text
     assert str(fake_ccusage) in text
+    # LaunchServices primitive (not --args -e cold-start form)
+    assert "open -a Ghostty.app" in text
+    assert "open -a Terminal.app" in text
 
     mode = helper.stat().st_mode & 0o777
     assert mode & stat.S_IXUSR
     assert mode == 0o755
 
 
-def test_install_helper_skipped_when_ccusage_missing(fake_plugin_dir: Path, tmp_path: Path):
+def test_install_helper_skipped_when_ccusage_missing(fake_plugin_dir: Path):
     """No ccusage on PATH → helper skipped, returns None."""
-    fake_ghostty = tmp_path / "Ghostty.app"
-    fake_ghostty.mkdir()
     with patch.object(cli.shutil, "which", return_value=None):
-        with patch.object(cli, "GHOSTTY_APP_PATH", fake_ghostty):
-            helper = cli._install_ccusage_helper(fake_plugin_dir)
+        helper = cli._install_ccusage_helper(fake_plugin_dir)
     assert helper is None
     assert not (fake_plugin_dir / ".cc-menubar-ccusage.sh").exists()
 
 
-def test_install_helper_skipped_when_ghostty_missing(fake_plugin_dir: Path, tmp_path: Path):
-    """No Ghostty.app → helper skipped."""
+def test_install_helper_works_without_ghostty(fake_plugin_dir: Path, tmp_path: Path):
+    """Ghostty.app absent is no longer a blocker — Terminal.app fallback handles it."""
     fake_ccusage = tmp_path / "bin" / "ccusage"
     fake_ccusage.parent.mkdir()
     fake_ccusage.touch()
 
-    missing_ghostty = tmp_path / "does-not-exist" / "Ghostty.app"
     with patch.object(cli.shutil, "which", return_value=str(fake_ccusage)):
-        with patch.object(cli, "GHOSTTY_APP_PATH", missing_ghostty):
-            helper = cli._install_ccusage_helper(fake_plugin_dir)
-    assert helper is None
-    assert not (fake_plugin_dir / ".cc-menubar-ccusage.sh").exists()
+        helper = cli._install_ccusage_helper(fake_plugin_dir)
+    assert helper is not None
+    assert helper.exists()
 
 
 def test_uninstall_removes_helper(fake_plugin_dir: Path):

@@ -17,7 +17,6 @@ def _epoch_from_now(days: int = 0, hours: int = 0) -> int:
 
 def _make_full_config() -> Config:
     return Config(
-        symbol="gauge.with.needle.fill",
         text="none",
         color="monochrome",
         metric="5h",
@@ -105,11 +104,40 @@ class TestLabelsAndTooltipsDicts:
             assert '"' not in val, f"TOOLTIPS[{key}] contains a double quote"
 
 
+class TestLabelSchemaIntegrity:
+    """Schema-level assertions on the LABELS dict itself."""
+
+    def test_rate_limits_section_header(self):
+        assert LABELS["section.rate_limits"] == "Plan usage limits"
+
+    def test_all_section_captions_present(self):
+        for section in ("rate_limits", "activity", "projects", "tools", "model_mix", "context"):
+            key = f"section.{section}_caption"
+            assert key in LABELS, f"Missing caption: {key}"
+
+    def test_row_suffix_has_both_placeholders(self):
+        suffix = LABELS["rate_limits.row_suffix"]
+        assert "{used}" in suffix
+        assert "{left}" in suffix
+        assert "{abs}" in suffix
+        assert "{rel}" in suffix
+
+    def test_no_data_label_points_to_cache_file(self):
+        """The no-data row names the canonical cache file so users can act."""
+        assert "rate_limits.no_data" in LABELS
+        assert "statusline-input.json" in LABELS["rate_limits.no_data"]
+
+    def test_no_seven_day_sonnet_keys(self):
+        """Regression check: v1.0.0 canonical-schema decouple removed this."""
+        assert not any("seven_day_sonnet" in k for k in LABELS)
+
+
 class TestLegacyStringsAbsent:
     """Rendered output must not contain old jargon labels."""
 
     LEGACY = [
         "Quota & Runway",
+        "Time Left & Limits",
         "Opusplan Health",
         "Context Efficiency",
         "1-shot",
@@ -120,6 +148,9 @@ class TestLegacyStringsAbsent:
         "Cache hit rate",
         "Large sessions (>",
         "% remaining",
+        "seven_day_sonnet",
+        "Sonnet only",
+        "No quota data",
     ]
 
     def test_no_legacy_strings_in_output(self):
@@ -180,7 +211,10 @@ class TestCaptionsPresent:
     the top of its submenu — not a tooltip on the parent."""
 
     CAPTION_KEYS = (
+        "section.rate_limits_caption",
         "section.activity_caption",
+        "section.projects_caption",
+        "section.tools_caption",
         "section.model_mix_caption",
         "section.context_caption",
     )

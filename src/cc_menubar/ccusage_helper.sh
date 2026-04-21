@@ -2,9 +2,9 @@
 # Invoked by SwiftBar with terminal=false (runs under Process, no AppleScript).
 # $1 = ccusage subcommand  ($2 optional, e.g. --active)
 #
-# On macOS, Ghostty cannot be launched from the CLI directly (per
-# `ghostty --help`). `open -na Ghostty.app --args -e <path>` routes through
-# the app bundle and runs that script.
+# LaunchServices hands the executable script to Ghostty (preferred) or
+# Terminal.app (fallback) by file-association — avoids the `--args -e`
+# cold-start race where Ghostty ignores `-e` on first launch.
 set -eu
 
 CCUSAGE="@@CCUSAGE_PATH@@"  # baked at install() time via shutil.which("ccusage")
@@ -19,4 +19,8 @@ rm -f "\$0"
 SH
 chmod +x "$tmpf"
 
-exec open -na Ghostty.app --args -e "$tmpf"
+if [ -d "/Applications/Ghostty.app" ]; then
+  exec open -a Ghostty.app "$tmpf"
+fi
+# Terminal.app always ships with macOS.
+exec open -a Terminal.app "$tmpf"

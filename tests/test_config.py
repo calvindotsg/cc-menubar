@@ -33,7 +33,6 @@ def test_deep_merge_new_keys():
 def test_config_defaults(tmp_path):
     """Config.load with no user file returns defaults."""
     config = Config.load(path=tmp_path / "nonexistent.toml")
-    assert config.symbol == "gauge.with.needle.fill"
     assert config.text == "none"
     assert config.color == "monochrome"
     assert config.metric == "5h"
@@ -55,8 +54,13 @@ def test_config_user_override(tmp_path):
     assert config.metric == "7d"
     assert config.theme_preset == "catppuccin"
     # Unoverridden fields stay default
-    assert config.symbol == "gauge.with.needle.fill"
     assert config.color == "monochrome"
+
+
+def test_config_no_symbol_attribute(tmp_path):
+    """[title].symbol knob was removed in v2.0.0 (dynamic _title_symbol supersedes)."""
+    config = Config.load(path=tmp_path / "nonexistent.toml")
+    assert not hasattr(config, "symbol")
 
 
 def test_config_env_override(tmp_path, monkeypatch):

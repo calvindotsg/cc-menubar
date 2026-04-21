@@ -29,22 +29,35 @@ Adding a label:
 from __future__ import annotations
 
 LABELS: dict[str, str] = {
-    # Section headers
-    "section.rate_limits": "Time Left & Limits",
-    "section.activity": "Activity (last 7d)",
+    # Section headers. `section.rate_limits` matches claude.ai/settings/usage
+    # and the `/usage` command heading. Row labels stay canonical `5-Hour` /
+    # `7-Day` — see `rate_limits.five_hour` / `rate_limits.seven_day` below.
+    "section.rate_limits": "Plan usage limits",
+    "section.activity": "Activity",
     "section.projects": "Projects",
     "section.tools": "Tools & Commands",
     "section.model_mix": "Model Mix",
     "section.context": "Context Size",
     # Submenu caption rows (disabled greyed-out first row in submenu;
-    # replaces section-header tooltips to avoid AppKit dual-popover collision)
+    # replaces section-header tooltips to avoid AppKit dual-popover collision).
+    # One per section for uniform hierarchy.
+    "section.rate_limits_caption": "Rolling 5-hour and 7-day usage windows",
     "section.activity_caption": "Activity by category over the last 7 days",
+    "section.projects_caption": "Turns grouped by project over the last 7 days",
+    "section.tools_caption": "Most-invoked tools and shell commands over the last 7 days",
     "section.model_mix_caption": "Which Claude model handled each turn over the last 7 days",
     "section.context_caption": "Conversation length and prompt-cache reuse over the last 7 days",
-    # Quota rows
+    # Quota rows — labels retain canonical field-derived names for parity with
+    # the statusline schema (`rate_limits.five_hour` / `rate_limits.seven_day`).
     "rate_limits.five_hour": "5-Hour",
     "rate_limits.seven_day": "7-Day",
-    "rate_limits.row_suffix": "{pct}% left  (resets {abs} \u00b7 in {rel})",
+    # Dual framing: "% used" and "% left" both visible. Placeholders:
+    # {used}, {left}, {abs}, {rel}.
+    "rate_limits.row_suffix": "{used}% used • {left}% left  (resets {abs} · in {rel})",
+    "rate_limits.no_data": (
+        "No quota yet — run Claude Code once to seed"
+        " ~/Library/Caches/cc-menubar/statusline-input.json"
+    ),
     "active_block.row": "Current 5h block: {parts}",
     # Activity
     "activity.one_shot": "{pct}% first-try",
@@ -62,11 +75,13 @@ LABELS: dict[str, str] = {
 }
 
 TOOLTIPS: dict[str, str] = {
-    "rate_limits.five_hour": "Rolling 5-hour Claude Code usage window",
-    "rate_limits.seven_day": "Rolling 7-day Claude Code usage window",
-    "active_block.row": (
-        "Current 5-hour ccusage block. Spend so far, hourly rate, time until the block closes."
+    "rate_limits.five_hour": (
+        "Rolling 5-hour Claude Code usage window (canonical statusline field rate_limits.five_hour)"
     ),
+    "rate_limits.seven_day": (
+        "Rolling 7-day Claude Code usage window (canonical statusline field rate_limits.seven_day)"
+    ),
+    "active_block.row": "Current 5-hour ccusage block — spend so far and hourly burn rate.",
     "activity.turns": "Each turn = one Claude response (message plus tool calls)",
     "activity.one_shot": "Share of edit sessions that didn't need a retry",
     "projects.subagent": "Share of turns delegated to sub-agents (Task / Agent tool)",
@@ -78,8 +93,8 @@ TOOLTIPS: dict[str, str] = {
         "Input-token counts per session. Typical = median; Longest 10% = 90th percentile."
     ),
     "context.cache_reuse": (
-        "Share of input tokens served from prompt cache \u2014 higher is more efficient"
+        "Share of input tokens served from prompt cache — higher is more efficient"
     ),
-    "footer.ccusage_daily": "Opens `ccusage daily` in Ghostty",
-    "footer.ccusage_blocks": "Opens `ccusage blocks --active` in Ghostty",
+    "footer.ccusage_daily": "Opens `ccusage daily` in a terminal",
+    "footer.ccusage_blocks": "Opens `ccusage blocks --active` in a terminal",
 }
