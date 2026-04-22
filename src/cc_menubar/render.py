@@ -629,7 +629,7 @@ def _render_footer(lines: list[str], theme: Theme) -> None:
     lines.append("Refresh | refresh=true sfimage=arrow.clockwise")
 
     if CCUSAGE_HELPER_PATH.exists():
-        helper_q = str(CCUSAGE_HELPER_PATH).replace(" ", "\\ ")
+        helper_q = f'"{CCUSAGE_HELPER_PATH}"'
         lines.append(
             f"{LABELS['footer.ccusage_daily']} | sfimage=calendar bash={helper_q} param1=daily"
             f" terminal=false refresh=false {_tooltip('footer.ccusage_daily')}"

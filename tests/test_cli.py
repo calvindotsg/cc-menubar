@@ -34,9 +34,10 @@ def test_install_helper_writes_script(fake_plugin_dir: Path, tmp_path: Path):
     text = helper.read_text()
     assert "@@CCUSAGE_PATH@@" not in text
     assert str(fake_ccusage) in text
-    # LaunchServices primitive (not --args -e cold-start form)
-    assert "open -a Ghostty.app" in text
+    assert "open -na Ghostty.app --args -e /bin/bash -c" in text
     assert "open -a Terminal.app" in text
+    assert 'open -a Ghostty.app "$tmpf"' not in text
+    assert '--args -e "' not in text
 
     mode = helper.stat().st_mode & 0o777
     assert mode & stat.S_IXUSR

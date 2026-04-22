@@ -150,6 +150,21 @@ class TestDropdown:
         output = render(config, None, None, None)
         assert "Refresh | refresh=true" in output
 
+    def test_ccusage_footer_quotes_helper_path(self, monkeypatch):
+        """Helper path must be double-quoted in bash= — SwiftBar's unquoted-value
+        parser splits on the first whitespace and does not honor `\\ ` escapes,
+        so a backslash-escaped space in the path silently breaks click actions
+        (helper never runs). Regression guard: SwiftBar plugins dir is
+        `~/Library/Application Support/` which always contains a space.
+        """
+        import cc_menubar.render as render_mod
+
+        monkeypatch.setattr(render_mod.Path, "exists", lambda self: True)
+        output = render(_make_config(), None, None, None)
+        assert f'bash="{render_mod.CCUSAGE_HELPER_PATH}"' in output
+        # Anti-pattern: backslash-escape of spaces in bash= value
+        assert "Application\\ Support" not in output
+
 
 class TestQuotaPercentSemantics:
     def test_percent_scale_rendering(self):
