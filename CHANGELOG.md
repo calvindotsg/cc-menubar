@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/calvindotsg/cc-menubar/compare/v2.0.0...v2.0.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **ccusage:** restore Ghostty terminal click on cold start ([#17](https://github.com/calvindotsg/cc-menubar/issues/17)) ([803d357](https://github.com/calvindotsg/cc-menubar/commit/803d35784587de5a3c68dbfa27b48e1c96c6e4ce))
+
 ## [2.0.0](https://github.com/calvindotsg/cc-menubar/compare/v1.0.0...v2.0.0) (2026-04-21)
 
 
